@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>AirBike Ride</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #000;
+    --text: #fff;
+    --muted: #cbd5e1;
+    --panel: rgba(0, 0, 0, 0.62);
+    --zone: #22c55e;
+    --zone-dark: #14532d;
+    --below: #e5e7eb;
+    --track: #374151;
+    --warn: #f59e0b;
+    --error: #ef4444;
+    --info: #60a5fa;
+    --sim: #fb923c;
+    --btn: #1f2937;
+    --btn-border: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+  #app { position: fixed; inset: 0; background: var(--bg); }
+
+  /* ---------- video ---------- */
+  #video { position: absolute; inset: 0; width: 100%; height: 100%; background: #000; display: none; }
+  #app.has-video #video { display: block; }
+  #placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; text-align: center; padding: 16px; color: var(--muted); }
+  #placeholder h1 { font-size: clamp(28px, 6vw, 56px); margin: 0 0 12px; color: var(--text); }
+  #placeholder p { font-size: clamp(18px, 2.6vw, 26px); margin: 4px 0; max-width: 34em; }
+  #app.has-video #placeholder { display: none; }
+
+  /* ---------- top bar (auto-hides during a ride) ---------- */
+  #topbar { position: absolute; top: 0; left: 0; right: 0; display: flex; flex-wrap: wrap; gap: 10px;
+    align-items: center; padding: 12px 16px; background: linear-gradient(rgba(0,0,0,.75), rgba(0,0,0,0));
+    transition: opacity .6s ease; z-index: 5; }
+  #app.controls-hidden #topbar { opacity: 0; pointer-events: none; }
+  #app.controls-hidden { cursor: none; }
+  .spacer { flex: 1 1 auto; }
+  button { font: inherit; font-size: 19px; font-weight: 600; color: var(--text); background: var(--btn);
+    border: 2px solid var(--btn-border); border-radius: 10px; padding: 10px 16px; min-height: 48px; cursor: pointer; }
+  button:hover { border-color: #e5e7eb; }
+  button:focus-visible { outline: 3px solid var(--info); outline-offset: 2px; }
+  button.primary { background: #1d4ed8; border-color: #93c5fd; }
+  button.sim-on { background: #9a3412; border-color: var(--sim); }
+  button[hidden] { display: none; }
+
+  #status { display: inline-flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 600;
+    background: var(--panel); border: 2px solid var(--btn-border); border-radius: 999px; padding: 8px 16px; min-height: 48px; }
+  #status .dot { width: 16px; height: 16px; border-radius: 50%; background: #9ca3af; flex: none; }
+  #status[data-tone="ok"] .dot { background: var(--zone); }
+  #status[data-tone="warn"] .dot { background: var(--warn); }
+  #status[data-tone="error"] .dot { background: var(--error); }
+
+  /* ---------- messages ---------- */
+  #messages { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); width: min(92vw, 820px);
+    display: flex; flex-direction: column; gap: 10px; z-index: 6; }
+  .msg { display: flex; gap: 12px; align-items: flex-start; background: rgba(0,0,0,.85); border: 3px solid var(--info);
+    border-radius: 12px; padding: 14px 16px; font-size: clamp(18px, 2.4vw, 24px); line-height: 1.35; }
+  .msg[data-level="warn"] { border-color: var(--warn); }
+  .msg[data-level="error"] { border-color: var(--error); }
+  .msg .text { flex: 1; }
+  .msg button { font-size: 18px; min-height: 40px; padding: 4px 12px; }
+
+  /* ---------- cadence panel (never hides) ---------- */
+  #cadence { background: var(--panel); border-radius: 18px; padding: 10px 20px 16px; width: min(100%, max(620px, 68vh)); }
+  #cadence .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 14px; }
+  #rpm { font-size: clamp(88px, 20vh, 220px); font-weight: 800; line-height: .95; font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em; text-shadow: 0 2px 12px rgba(0,0,0,.8); }
+  #rpm-unit { font-size: clamp(26px, 4.5vh, 44px); font-weight: 700; color: var(--muted); }
+  #sim-badge { margin-left: auto; align-self: center; background: var(--sim); color: #000; font-weight: 800;
+    font-size: clamp(18px, 3vh, 28px); padding: 6px 14px; border-radius: 8px; letter-spacing: .06em; }
+  #sim-badge[hidden] { display: none; }
+
+  #bar { position: relative; height: clamp(30px, 5vh, 46px); margin-top: 10px; border-radius: 10px;
+    background: var(--track); overflow: hidden; }
+  #bar-zone { position: absolute; top: 0; bottom: 0; right: 0; background: var(--zone-dark); }
+  #bar-fill { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: var(--below);
+    transition: width .3s linear, background-color .3s linear; }
+  #bar-fill.in-zone { background: var(--zone); }
+  #bar-marker { position: absolute; top: -2px; bottom: -2px; width: 5px; margin-left: -2px; background: #fff; }
+  #bar-labels { position: relative; height: 26px; font-size: 20px; font-weight: 700; color: var(--muted); }
+  #bar-target-label { position: absolute; transform: translateX(-50%); top: 2px; color: #fff; }
+  #speed-line { font-size: clamp(18px, 2.8vh, 26px); color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
+
+  /* ---------- simulator panel ---------- */
+  #sim-panel { background: var(--panel);
+    border: 3px solid var(--sim); border-radius: 16px; padding: 12px 18px; width: min(100%, 360px); }
+  #sim-panel[hidden] { display: none; }
+  #sim-panel label { display: block; font-size: 20px; font-weight: 700; color: var(--sim); margin-bottom: 6px; }
+  #sim-slider { width: 100%; height: 44px; accent-color: var(--sim); }
+  #sim-value { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  #wake-note { font-size: 15px; color: var(--muted); flex-basis: 100%; text-align: right; margin-top: -4px; }
+  #wake-note:empty { display: none; }
+
+  /* Bottom area: cadence panel and simulator side by side; the simulator moves above when there's no room */
+  #bottom { position: absolute; left: 16px; right: 16px; bottom: 16px; z-index: 4; display: flex;
+    flex-wrap: wrap-reverse; align-items: flex-end; justify-content: space-between; gap: 16px; pointer-events: none; }
+  #bottom > * { pointer-events: auto; }
+</style>
+</head>
+<body>
+<div id="app">
+  <video id="video" muted playsinline loop preload="auto" disablepictureinpicture></video>
+
+  <div id="placeholder">
+    <h1>Choose a video to start</h1>
+    <p>Press <b>Connect bike</b>, then <b>Choose video</b>.</p>
+    <p>The video plays at full speed at 70 RPM or more, slows down below that, and pauses when pedalling stops.</p>
+  </div>
+
+  <div id="topbar">
+    <div id="status" data-tone="idle" role="status" aria-live="polite"><span class="dot"></span><span id="status-text">Bike not connected</span></div>
+    <button id="btn-connect" class="primary" type="button">Connect bike</button>
+    <button id="btn-reconnect" type="button" hidden>Reconnect now</button>
+    <button id="btn-disconnect" type="button" hidden>Disconnect</button>
+    <span class="spacer"></span>
+    <button id="btn-video" type="button">Choose video</button>
+    <button id="btn-sim" type="button" aria-pressed="false">Simulator</button>
+    <button id="btn-fullscreen" type="button">Fullscreen</button>
+    <input id="file-input" type="file" accept="video/*" hidden>
+    <div id="wake-note"></div>
+  </div>
+
+  <div id="messages" aria-live="assertive"></div>
+
+  <div id="bottom">
+  <div id="cadence">
+    <div class="row">
+      <span id="rpm">0</span><span id="rpm-unit">RPM</span>
+      <span id="sim-badge" hidden>SIMULATOR</span>
+    </div>
+    <div id="bar"><div id="bar-zone"></div><div id="bar-fill"></div><div id="bar-marker"></div></div>
+    <div id="bar-labels"><span id="bar-target-label">70</span></div>
+    <div id="speed-line">Waiting for pedalling</div>
+  </div>
+
+  <div id="sim-panel" hidden>
+    <label for="sim-slider">Simulator cadence</label>
+    <input id="sim-slider" type="range" min="0" max="120" step="1" value="0">
+    <div id="sim-value">0 RPM</div>
+  </div>
+  </div>
+</div>
+
+<!--
+  =====================================================================
+  CORE LOGIC (no browser APIs here, so it can be unit-tested on its own)
+  =====================================================================
+-->
+<script id="core">
+"use strict";
+
+// ---------------------------------------------------------------------
+// SETTINGS - change these to tune the app.
+// ---------------------------------------------------------------------
+const CONFIG = Object.freeze({
+  TARGET_RPM: 70,              // at or above this cadence the video plays at normal speed (1.0x)
+  MIN_PLAYBACK_RATE: 0.3,      // slowest speed while still pedalling
+  SPEED_EASE_SECONDS: 1.0,     // speed changes take about this long (95% of the way)
+  STOP_EASE_SECONDS: 0.5,      // when cadence is 0, the video eases down and pauses within this time
+  DATA_TIMEOUT_MS: 2000,       // no cadence data for longer than this = treat as stopped
+  PAUSE_BELOW_RATE: 0.15,      // while stopping, pause once the eased speed drops below this
+  RESUME_START_RATE: 0.15,     // when pedalling starts again, play from this speed and ease up
+  BROWSER_MIN_RATE: 0.0625,    // Chrome rejects playbackRate values below this (NotSupportedError)
+  BROWSER_MAX_RATE: 16,        // ...and above this
+  CONTROL_TICK_MS: 50,         // how often the speed control runs
+  DISPLAY_MAX_RPM: 120,        // right-hand end of the cadence bar
+  SIM_MAX_RPM: 120,            // simulator slider range 0..this
+  RECONNECT_DELAYS_MS: [1000, 2000, 4000, 8000, 10000], // waits between reconnect tries; the last one repeats
+  CONNECT_TIMEOUT_MS: 20000,   // give up on one connection attempt after this long
+  CONTROLS_HIDE_MS: 5000,      // hide the buttons after this much inactivity during a ride
+  VIDEO_FIT: "cover",          // "cover" fills the screen (may crop edges), "contain" shows the whole picture
+});
+
+// Bluetooth details, taken from AirBike.ino
+const FTMS = Object.freeze({
+  DEVICE_NAME: "AirBike",       // DEVICE_NAME, sent in the scan response
+  SERVICE: 0x1826,              // Fitness Machine Service (FTMS_SERVICE_UUID)
+  INDOOR_BIKE_DATA: 0x2AD2,     // Indoor Bike Data, notify (FTMS_INDOOR_BIKE_UUID)
+});
+
+// ---------------------------------------------------------------------
+// FTMS Indoor Bike Data parser (FTMS v1.0 section 4.9 + SIG field definitions).
+// Fields appear in this fixed order, each only when its flag says so.
+// Bit 0 is "More Data": the Instantaneous Speed field is present when bit 0 is 0.
+// All values are little-endian.
+// ---------------------------------------------------------------------
+const IBD_FIELDS = [
+  { bit: 0,  inverted: true, fields: [["instantaneousSpeedKmh", "u16", 0.01]] },
+  { bit: 1,  fields: [["averageSpeedKmh", "u16", 0.01]] },
+  { bit: 2,  fields: [["instantaneousCadenceRpm", "u16", 0.5]] },
+  { bit: 3,  fields: [["averageCadenceRpm", "u16", 0.5]] },
+  { bit: 4,  fields: [["totalDistanceM", "u24", 1]] },
+  { bit: 5,  fields: [["resistanceLevel", "s16", 1]] },   // see note on size below
+  { bit: 6,  fields: [["instantaneousPowerW", "s16", 1]] },
+  { bit: 7,  fields: [["averagePowerW", "s16", 1]] },
+  { bit: 8,  fields: [["totalEnergyKcal", "u16", 1], ["energyPerHourKcal", "u16", 1], ["energyPerMinuteKcal", "u8", 1]] },
+  { bit: 9,  fields: [["heartRateBpm", "u8", 1]] },
+  { bit: 10, fields: [["metabolicEquivalent", "u8", 0.1]] },
+  { bit: 11, fields: [["elapsedTimeS", "u16", 1]] },
+  { bit: 12, fields: [["remainingTimeS", "u16", 1]] },
+];
+const TYPE_SIZE = { u8: 1, u16: 2, s16: 2, u24: 3 };
+
+function readField(dv, offset, type) {
+  switch (type) {
+    case "u8":  return dv.getUint8(offset);
+    case "u16": return dv.getUint16(offset, true);
+    case "s16": return dv.getInt16(offset, true);
+    case "u24": return dv.getUint16(offset, true) + dv.getUint8(offset + 2) * 65536;
+  }
+  throw new Error("unknown type " + type);
+}
+
+/**
+ * Parse one Indoor Bike Data notification.
+ * @param {DataView} dv
+ * @returns {{ok: true, flags: number, moreData: boolean, resistanceBytes?: number, [k: string]: any} | {ok: false, error: string}}
+ *
+ * Resistance Level size: the SIG's original field definition (and AirBike.ino, Kinomap,
+ * QZ) use sint16 (2 bytes). A later GATT Specification Supplement lists it as uint8.
+ * The parser reads 2 bytes unless the packet length only fits the 1-byte version.
+ */
+function parseIndoorBikeData(dv) {
+  if (!dv || dv.byteLength < 2) return { ok: false, error: "packet too short for flags" };
+  const flags = dv.getUint16(0, true);
+  const present = (entry) => entry.inverted ? ((flags >> entry.bit) & 1) === 0 : ((flags >> entry.bit) & 1) === 1;
+
+  const lengthWith = (resistanceSize) => {
+    let len = 2;
+    for (const entry of IBD_FIELDS) {
+      if (!present(entry)) continue;
+      for (const [, type] of entry.fields) len += (entry.bit === 5 ? resistanceSize : TYPE_SIZE[type]);
+    }
+    return len;
+  };
+
+  const resistancePresent = ((flags >> 5) & 1) === 1;
+  let resistanceType = "s16";
+  const expected2 = lengthWith(2);
+  if (resistancePresent && dv.byteLength !== expected2 && dv.byteLength === lengthWith(1)) resistanceType = "u8";
+  const expected = resistanceType === "u8" ? expected2 - 1 : expected2;
+  if (dv.byteLength < expected) {
+    return { ok: false, error: `packet has ${dv.byteLength} bytes but flags 0x${flags.toString(16).padStart(4, "0")} need ${expected}` };
+  }
+
+  const out = { ok: true, flags, moreData: (flags & 1) === 1 };
+  let offset = 2;
+  for (const entry of IBD_FIELDS) {
+    if (!present(entry)) continue;
+    for (const [name, typeIn, scale] of entry.fields) {
+      const type = entry.bit === 5 ? resistanceType : typeIn;
+      out[name] = readField(dv, offset, type) * scale;
+      offset += TYPE_SIZE[type];
+    }
+  }
+  if (resistancePresent) out.resistanceBytes = TYPE_SIZE[resistanceType];
+  if (dv.byteLength > expected) out.extraBytes = dv.byteLength - expected;
+  return out;
+}
+
+// ---------------------------------------------------------------------
+// Cadence -> video speed
+// ---------------------------------------------------------------------
+
+/** Which cadence counts right now: simulator, fresh bike data, or 0 when data is stale/missing. */
+function effectiveCadence(input, cfg) {
+  if (input.simulatorOn) return { rpm: Math.max(0, input.simulatorRpm || 0), source: "simulator", stale: false };
+  if (input.bikeRpmAt == null) return { rpm: 0, source: "none", stale: false };
+  if (input.now - input.bikeRpmAt > cfg.DATA_TIMEOUT_MS) return { rpm: 0, source: "bike", stale: true };
+  return { rpm: Math.max(0, input.bikeRpm || 0), source: "bike", stale: false };
+}
+
+/** Target playback rate for a cadence: 0 = stopped, else RPM/target clamped to [MIN_PLAYBACK_RATE, 1]. */
+function targetRateForCadence(rpm, cfg) {
+  if (!(rpm > 0)) return 0;
+  return Math.min(1, Math.max(cfg.MIN_PLAYBACK_RATE, rpm / cfg.TARGET_RPM));
+}
+
+/**
+ * One step of the eased speed controller. Pure function.
+ * state: { rate, playing, stoppingFor }  -> returns the next state.
+ * Exponential easing with time constant = ease time / 3 reaches ~95% in the ease time.
+ */
+function stepPlayback(state, targetRate, dt, cfg) {
+  if (targetRate <= 0) {
+    if (!state.playing) return { rate: 0, playing: false, stoppingFor: 0 };
+    const stoppingFor = state.stoppingFor + dt;
+    const rate = state.rate * Math.exp(-dt / (cfg.STOP_EASE_SECONDS / 3));
+    if (rate < cfg.PAUSE_BELOW_RATE || stoppingFor >= cfg.STOP_EASE_SECONDS) {
+      return { rate: 0, playing: false, stoppingFor: 0 };
+    }
+    return { rate, playing: true, stoppingFor };
+  }
+  const from = state.playing ? state.rate : cfg.RESUME_START_RATE;
+  let rate = targetRate + (from - targetRate) * Math.exp(-dt / (cfg.SPEED_EASE_SECONDS / 3));
+  if (Math.abs(rate - targetRate) < 0.002) rate = targetRate;
+  return { rate, playing: true, stoppingFor: 0 };
+}
+
+globalThis.AirBikeCore = { CONFIG, FTMS, parseIndoorBikeData, effectiveCadence, targetRateForCadence, stepPlayback };
+</script>
+
+<!--
+  =====================================================================
+  APP: bike connection, video speed control, effects, UI
+  =====================================================================
+-->
+<script id="app-script">
+"use strict";
+(() => {
+  const { CONFIG, FTMS, parseIndoorBikeData, effectiveCadence, targetRateForCadence, stepPlayback } = globalThis.AirBikeCore;
+  const $ = (id) => document.getElementById(id);
+
+  if (CONFIG.PAUSE_BELOW_RATE < CONFIG.BROWSER_MIN_RATE || CONFIG.RESUME_START_RATE < CONFIG.BROWSER_MIN_RATE) {
+    console.warn("PAUSE_BELOW_RATE / RESUME_START_RATE must not be below BROWSER_MIN_RATE");
+  }
+
+  // -------------------------------------------------------------------
+  // UI: messages, status, cadence display
+  // -------------------------------------------------------------------
+  const UI = {
+    messages: new Map(),
+
+    showMessage(key, text, level = "info", { dismissible = true } = {}) {
+      let el = this.messages.get(key);
+      if (!el) {
+        el = document.createElement("div");
+        el.className = "msg";
+        el.innerHTML = '<div class="text"></div>';
+        if (dismissible) {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.textContent = "OK";
+          b.addEventListener("click", () => this.clearMessage(key));
+          el.appendChild(b);
+        }
+        $("messages").appendChild(el);
+        this.messages.set(key, el);
+      }
+      el.dataset.level = level;
+      el.querySelector(".text").textContent = text;
+    },
+
+    clearMessage(key) {
+      const el = this.messages.get(key);
+      if (el) { el.remove(); this.messages.delete(key); }
+    },
+
+    setStatus(text, tone) {
+      $("status-text").textContent = text;
+      $("status").dataset.tone = tone;
+    },
+
+    initBar() {
+      const zoneStart = Math.min(1, CONFIG.TARGET_RPM / CONFIG.DISPLAY_MAX_RPM) * 100;
+      $("bar-zone").style.left = zoneStart + "%";
+      $("bar-marker").style.left = zoneStart + "%";
+      $("bar-target-label").style.left = zoneStart + "%";
+      $("bar-target-label").textContent = String(CONFIG.TARGET_RPM);
+      $("video").style.objectFit = CONFIG.VIDEO_FIT;
+      $("sim-slider").max = String(CONFIG.SIM_MAX_RPM);
+    },
+
+    lastShown: {},
+    renderCadence(cad, playback, hasVideo) {
+      const rpmText = cad.source === "bike" && cad.stale ? "–" : String(Math.round(cad.rpm));
+      if (this.lastShown.rpm !== rpmText) { $("rpm").textContent = rpmText; this.lastShown.rpm = rpmText; }
+
+      const pct = Math.min(1, cad.rpm / CONFIG.DISPLAY_MAX_RPM) * 100;
+      const fill = $("bar-fill");
+      const widthText = pct.toFixed(1) + "%";
+      if (this.lastShown.width !== widthText) { fill.style.width = widthText; this.lastShown.width = widthText; }
+      fill.classList.toggle("in-zone", cad.rpm >= CONFIG.TARGET_RPM);
+
+      let line;
+      if (!hasVideo) line = "No video chosen";
+      else if (playback.playing) line = "Video speed " + playback.rate.toFixed(2) + "×";
+      else line = "Video paused – pedal to go";
+      if (this.lastShown.line !== line) { $("speed-line").textContent = line; this.lastShown.line = line; }
+    },
+  };
+
+  // -------------------------------------------------------------------
+  // Bike connection (Web Bluetooth). Notifications only: no reads, no writes.
+  // -------------------------------------------------------------------
+  const Bike = {
+    device: null,
+    characteristic: null,
+    state: "idle",            // idle | requesting | connecting | connected | reconnecting
+    userDisconnected: false,
+    busy: false,
+    retryTimer: null,
+    retryIndex: 0,
+    attempts: 0,
+    lastCadence: null,
+    lastCadenceAt: null,
+    packets: 0,
+    listening: new WeakSet(),
+    onChange: () => {},
+
+    supported() { return window.isSecureContext && "bluetooth" in navigator; },
+
+    setState(s) { this.state = s; this.onChange(); },
+
+    // Called from the "Connect bike" button (needs the user's click).
+    async choose() {
+      if (!this.supported()) { App.showUnsupported(); return; }
+      UI.clearMessage("bike");
+      this.setState("requesting");
+      let device;
+      try {
+        device = await navigator.bluetooth.requestDevice({
+          // Either filter is enough (filters are OR'd): the FTMS service UUID is in the
+          // advertising packet, the name "AirBike" is in the scan response.
+          filters: [{ services: [FTMS.SERVICE] }, { name: FTMS.DEVICE_NAME }],
+          optionalServices: [FTMS.SERVICE],
+        });
+      } catch (err) {
+        this.setState("idle");
+        this.reportRequestError(err);
+        return;
+      }
+      if (this.device && this.device !== device) this.forgetCurrent();
+      this.device = device;
+      if (!this.listening.has(device)) {
+        this.listening.add(device);
+        // Only react if this is still the current bike (ignore events from a replaced device).
+        device.addEventListener("gattserverdisconnected", () => { if (device === this.device) this.onDisconnected(); });
+      }
+      this.userDisconnected = false;
+      this.retryIndex = 0;
+      this.attempts = 0;
+      this.tryConnect(false);
+    },
+
+    reportRequestError(err) {
+      const name = err && err.name, msg = (err && err.message) || "";
+      console.warn("requestDevice failed:", name, msg);
+      if (name === "NotFoundError" && /cancel/i.test(msg)) {
+        UI.showMessage("bike", "No bike was chosen. Press Connect bike and pick “AirBike” from the list.", "info");
+      } else if (/adapter|bluetooth is (off|disabled)|not available/i.test(msg)) {
+        UI.showMessage("bike", "Bluetooth is turned off or not available on this device. Turn Bluetooth on, then press Connect bike again.", "error");
+      } else if (name === "NotAllowedError" || name === "SecurityError" || /permission|denied|blocked|globally disabled/i.test(msg)) {
+        UI.showMessage("bike", "Bluetooth permission was denied. Allow Bluetooth for this site in Chrome (lock icon › Site settings). On Android also allow Chrome “Nearby devices” (and Location on older Android). Then try again.", "error");
+      } else if (name === "NotFoundError") {
+        UI.showMessage("bike", "Bike not found. Check the bike sensor has power and is close by, and close Kinomap or any other app using the bike – only one app can connect at a time.", "error");
+      } else {
+        UI.showMessage("bike", "Could not start the Bluetooth search (" + (name || "error") + "). Please try again.", "error");
+      }
+    },
+
+    // One attempt to open the GATT connection and subscribe.
+    async tryConnect(isRetry) {
+      if (!this.device || this.busy) return;
+      this.busy = true;
+      this.attempts += 1;
+      this.setState(isRetry ? "reconnecting" : "connecting");
+      const device = this.device;
+      try {
+        const server = await withTimeout(device.gatt.connect(), CONFIG.CONNECT_TIMEOUT_MS, () => {
+          try { device.gatt.disconnect(); } catch (_) { /* ignore */ }
+        });
+        const service = await server.getPrimaryService(FTMS.SERVICE);
+        const ch = await service.getCharacteristic(FTMS.INDOOR_BIKE_DATA);
+        if (this.characteristic) this.characteristic.removeEventListener("characteristicvaluechanged", this.onValue);
+        ch.addEventListener("characteristicvaluechanged", this.onValue);
+        await ch.startNotifications();
+        if (this.userDisconnected || device !== this.device) { try { device.gatt.disconnect(); } catch (_) {} return; }
+        this.characteristic = ch;
+        this.retryIndex = 0;
+        this.attempts = 0;
+        UI.clearMessage("bike");
+        this.setState("connected");
+      } catch (err) {
+        console.warn("connect attempt failed:", err && err.name, err && err.message);
+        if (this.userDisconnected || device !== this.device) return;
+        if (err && err.name === "NotFoundError") {
+          // The device has no FTMS service / Indoor Bike Data: wrong device, don't keep retrying.
+          UI.showMessage("bike", "That device isn't sending bike data. Press Connect bike and choose “AirBike”.", "error");
+          try { device.gatt.disconnect(); } catch (_) {}
+          this.setState("idle");
+          return;
+        }
+        this.scheduleReconnect();
+      } finally {
+        this.busy = false;
+      }
+    },
+
+    onValue: (event) => {
+      const result = parseIndoorBikeData(event.target.value);
+      Bike.packets += 1;
+      if (!result.ok) { console.warn("Indoor Bike Data ignored:", result.error); return; }
+      if (typeof result.instantaneousCadenceRpm === "number") {
+        Bike.lastCadence = result.instantaneousCadenceRpm;
+        Bike.lastCadenceAt = performance.now();
+      }
+    },
+
+    onDisconnected() {
+      console.info("Bike disconnected");
+      if (this.userDisconnected) { this.setState("idle"); return; }
+      if (this.busy) return;   // the running attempt will schedule the next try
+      this.scheduleReconnect();
+    },
+
+    scheduleReconnect() {
+      clearTimeout(this.retryTimer);
+      const delays = CONFIG.RECONNECT_DELAYS_MS;
+      const delay = delays[Math.min(this.retryIndex, delays.length - 1)];
+      this.retryIndex += 1;
+      this.setState("reconnecting");
+      UI.showMessage("bike", `Bike disconnected – trying to reconnect (try ${this.attempts + 1})… If this keeps happening, check the bike sensor has power and that Kinomap is closed.`, "warn", { dismissible: false });
+      this.retryTimer = setTimeout(() => this.tryConnect(true), delay);
+    },
+
+    // "Reconnect now" button: skip the wait. Uses the same bike, no chooser.
+    reconnectNow() {
+      if (!this.device) { this.choose(); return; }
+      clearTimeout(this.retryTimer);
+      this.userDisconnected = false;
+      this.retryIndex = 0;
+      this.tryConnect(true);
+    },
+
+    disconnect() {
+      this.userDisconnected = true;
+      clearTimeout(this.retryTimer);
+      this.lastCadenceAt = null;
+      UI.clearMessage("bike");
+      if (this.device && this.device.gatt.connected) this.device.gatt.disconnect(); // fires gattserverdisconnected
+      this.setState("idle");
+    },
+
+    forgetCurrent() {
+      clearTimeout(this.retryTimer);
+      const old = this.device;
+      this.device = null;          // set first, so the old device's disconnect event is ignored
+      this.characteristic = null;
+      this.lastCadenceAt = null;
+      if (old && old.gatt.connected) old.gatt.disconnect();
+    },
+  };
+
+  function withTimeout(promise, ms, onTimeout) {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => { onTimeout && onTimeout(); reject(new DOMException("Connection timed out", "TimeoutError")); }, ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+  }
+
+  // -------------------------------------------------------------------
+  // Simulator
+  // -------------------------------------------------------------------
+  const Sim = {
+    on: false,
+    rpm: 0,
+    toggle() {
+      this.on = !this.on;
+      $("sim-panel").hidden = !this.on;
+      $("sim-badge").hidden = !this.on;
+      $("btn-sim").classList.toggle("sim-on", this.on);
+      $("btn-sim").setAttribute("aria-pressed", String(this.on));
+      $("btn-sim").textContent = this.on ? "Simulator: ON" : "Simulator";
+      App.refreshStatus();
+    },
+    set(v) {
+      this.rpm = Number(v) || 0;
+      $("sim-value").textContent = this.rpm + " RPM";
+    },
+  };
+
+  // -------------------------------------------------------------------
+  // Video speed control
+  // -------------------------------------------------------------------
+  const VideoController = {
+    el: null,
+    url: null,
+    hasVideo: false,
+    state: { rate: 0, playing: false, stoppingFor: 0 },
+    playPending: false,
+
+    init() {
+      this.el = $("video");
+      this.el.muted = true;   // music comes in a later step
+      this.el.addEventListener("error", () => {
+        if (!this.hasVideo) return;
+        UI.showMessage("video", "This video can't be played in Chrome. MP4 files (H.264 video) work best.", "error");
+      });
+    },
+
+    load(file) {
+      if (this.url) URL.revokeObjectURL(this.url);
+      this.url = URL.createObjectURL(file);
+      UI.clearMessage("video");
+      this.hasVideo = true;
+      this.state = { rate: 0, playing: false, stoppingFor: 0 };
+      this.el.src = this.url;   // loading resets playbackRate to defaultPlaybackRate; tick() re-applies it
+      document.getElementById("app").classList.add("has-video");
+    },
+
+    tick(dt, targetRate) {
+      const next = stepPlayback(this.state, targetRate, dt, CONFIG);
+      this.state = next;
+      if (!this.hasVideo || this.el.readyState < 1 /* HAVE_METADATA */ || this.el.error) return;
+
+      if (next.playing) {
+        const r = Math.min(CONFIG.BROWSER_MAX_RATE, Math.max(CONFIG.BROWSER_MIN_RATE, next.rate));
+        if (Math.abs(this.el.playbackRate - r) > 0.004) {
+          try { this.el.playbackRate = r; } catch (e) { console.warn("playbackRate rejected", r, e.name); }
+        }
+        if (this.el.paused && !this.playPending) {
+          this.playPending = true;
+          this.el.play().then(() => {
+            this.playPending = false;
+            UI.clearMessage("play");
+          }).catch((e) => {
+            this.playPending = false;
+            if (e && e.name === "NotAllowedError") UI.showMessage("play", "Tap the screen once to let the video play.", "info");
+            else if (e && e.name !== "AbortError") console.warn("play() failed", e);
+          });
+        }
+      } else if (!this.el.paused) {
+        this.el.pause();
+      }
+    },
+  };
+
+  // -------------------------------------------------------------------
+  // Effects layer - placeholder for Step 2 (colour/fog reward, glow, streak badge).
+  // Gets the same per-tick information as the video controller.
+  // -------------------------------------------------------------------
+  const Effects = {
+    init() {},
+    update(/* { rpm, inZone, dt, playback } */) {},
+  };
+
+  // (Step 3) Audio module will go here, fed from the same tick.
+  // (Step 4) Session history and caregiver settings will read/write CONFIG-like values.
+
+  // -------------------------------------------------------------------
+  // Screen Wake Lock (with graceful fallback)
+  // -------------------------------------------------------------------
+  const Wake = {
+    wanted: false,
+    sentinel: null,
+    warned: false,
+    async request() {
+      this.wanted = true;
+      if (!("wakeLock" in navigator)) { this.fallback(); return; }
+      if (this.sentinel || document.visibilityState !== "visible") return;
+      try {
+        this.sentinel = await navigator.wakeLock.request("screen");
+        this.sentinel.addEventListener("release", () => { this.sentinel = null; this.render(); });
+        this.render();
+      } catch (err) {
+        console.warn("Wake lock failed:", err.name, err.message);
+        this.sentinel = null;
+        this.fallback(err.name === "NotAllowedError" ? " (blocked – battery saver may be on)" : "");
+      }
+    },
+    fallback(extra = "") {
+      $("wake-note").textContent = "Screen may go to sleep" + extra;
+      if (!this.warned) {
+        this.warned = true;
+        UI.showMessage("wake", "This browser can't keep the screen on by itself" + extra + ". Set the screen timeout to the longest setting in the device's display settings.", "info");
+      }
+    },
+    render() { $("wake-note").textContent = this.sentinel ? "Screen stays on" : (this.wanted ? "Screen may go to sleep" : ""); },
+    init() {
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && this.wanted) this.request();
+      });
+    },
+  };
+
+  // -------------------------------------------------------------------
+  // Fullscreen
+  // -------------------------------------------------------------------
+  const Fullscreen = {
+    init() {
+      const btn = $("btn-fullscreen");
+      if (!document.fullscreenEnabled) { btn.hidden = true; return; }
+      btn.addEventListener("click", () => this.toggle());
+      document.addEventListener("fullscreenchange", () => {
+        btn.textContent = document.fullscreenElement ? "Exit fullscreen" : "Fullscreen";
+      });
+    },
+    toggle() {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      } else {
+        // Whole page, so the cadence display stays on top of the video.
+        document.documentElement.requestFullscreen().catch((err) => {
+          UI.showMessage("fs", "Fullscreen isn't available here (" + err.name + ").", "info");
+        });
+      }
+    },
+  };
+
+  // -------------------------------------------------------------------
+  // Auto-hide the buttons during a ride
+  // -------------------------------------------------------------------
+  const Controls = {
+    timer: null,
+    init() {
+      const wake = () => this.show();
+      ["pointermove", "pointerdown", "keydown", "touchstart"].forEach((ev) => document.addEventListener(ev, wake, { passive: true }));
+      this.show();
+    },
+    show() {
+      $("app").classList.remove("controls-hidden");
+      clearTimeout(this.timer);
+      this.timer = setTimeout(() => {
+        const riding = VideoController.hasVideo && (Bike.state === "connected" || Sim.on);
+        if (riding) $("app").classList.add("controls-hidden");
+      }, CONFIG.CONTROLS_HIDE_MS);
+    },
+  };
+
+  // -------------------------------------------------------------------
+  // App wiring and main loop
+  // -------------------------------------------------------------------
+  const App = {
+    showUnsupported() {
+      if (!window.isSecureContext) {
+        UI.showMessage("support", "Bluetooth needs a secure page. Open this app from its https:// address (or http://localhost while testing). The simulator still works.", "error");
+      } else {
+        UI.showMessage("support", "This browser can't connect to the bike. Please use Google Chrome on an Android tablet, a Mac, Windows or a Chromebook. Safari, iPhone/iPad and Firefox don't support Bluetooth for web pages. The simulator still works.", "error");
+      }
+      UI.setStatus("Bluetooth not available", "error");
+    },
+
+    refreshStatus() {
+      const connectBtn = $("btn-connect"), reBtn = $("btn-reconnect"), discBtn = $("btn-disconnect");
+      if (!Bike.supported()) {
+        connectBtn.hidden = false; reBtn.hidden = true; discBtn.hidden = true;
+        return;
+      }
+      const s = Bike.state;
+      connectBtn.hidden = s === "connected" || s === "connecting" || s === "reconnecting";
+      connectBtn.textContent = Bike.device ? "Choose bike…" : "Connect bike";
+      connectBtn.classList.toggle("primary", !Bike.device);
+      reBtn.hidden = !(Bike.device && (s === "idle" || s === "reconnecting"));
+      reBtn.textContent = s === "idle" ? "Reconnect" : "Reconnect now";
+      discBtn.hidden = !(s === "connected" || s === "reconnecting" || s === "connecting");
+      reBtn.classList.toggle("primary", !!Bike.device && s === "idle");
+    },
+
+    renderStatus(cad) {
+      if (!Bike.supported()) return;
+      const s = Bike.state;
+      if (s === "requesting") UI.setStatus("Choose “AirBike” in the list…", "warn");
+      else if (s === "connecting") UI.setStatus("Connecting…", "warn");
+      else if (s === "reconnecting") UI.setStatus("Reconnecting…", "warn");
+      else if (s === "connected") {
+        const fresh = Bike.lastCadenceAt != null && performance.now() - Bike.lastCadenceAt <= CONFIG.DATA_TIMEOUT_MS;
+        UI.setStatus(fresh ? "Bike connected" : "Bike connected · no data", fresh ? "ok" : "warn");
+      } else UI.setStatus("Bike not connected", "idle");
+    },
+
+    lastTick: performance.now(),
+    tick() {
+      const now = performance.now();
+      const dt = Math.min((now - App.lastTick) / 1000, 1);
+      App.lastTick = now;
+      const cad = effectiveCadence({
+        simulatorOn: Sim.on, simulatorRpm: Sim.rpm,
+        bikeRpm: Bike.lastCadence, bikeRpmAt: Bike.lastCadenceAt, now,
+      }, CONFIG);
+      const target = targetRateForCadence(cad.rpm, CONFIG);
+      VideoController.tick(dt, target);
+      Effects.update({ rpm: cad.rpm, inZone: cad.rpm >= CONFIG.TARGET_RPM, dt, playback: VideoController.state });
+      UI.renderCadence(cad, VideoController.state, VideoController.hasVideo);
+      App.renderStatus(cad);
+    },
+
+    init() {
+      UI.initBar();
+      VideoController.init();
+      Effects.init();
+      Wake.init();
+      Fullscreen.init();
+      Controls.init();
+
+      Bike.onChange = () => {
+        App.refreshStatus();
+        if (Bike.state !== "connected") Controls.show();   // bring the buttons back if the bike drops
+      };
+      // Keep messages just below the toolbar, however many rows it wraps to.
+      const placeMessages = () => { $("messages").style.top = ($("topbar").offsetHeight + 8) + "px"; };
+      if ("ResizeObserver" in window) new ResizeObserver(placeMessages).observe($("topbar"));
+      placeMessages();
+      if (!Bike.supported()) App.showUnsupported();
+      App.refreshStatus();
+
+      $("btn-connect").addEventListener("click", () => { Wake.request(); Bike.choose(); });
+      $("btn-reconnect").addEventListener("click", () => { Wake.request(); Bike.reconnectNow(); });
+      $("btn-disconnect").addEventListener("click", () => Bike.disconnect());
+      $("btn-video").addEventListener("click", () => { Wake.request(); $("file-input").click(); });
+      $("file-input").addEventListener("change", (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) VideoController.load(file);
+        e.target.value = "";   // allow choosing the same file again
+      });
+      $("btn-sim").addEventListener("click", () => { Wake.request(); Sim.toggle(); });
+      $("sim-slider").addEventListener("input", (e) => Sim.set(e.target.value));
+      Sim.set($("sim-slider").value);
+
+      setInterval(App.tick, CONFIG.CONTROL_TICK_MS);
+    },
+  };
+
+  window.AirBikeApp = { Bike, Sim, VideoController, UI, App };   // for debugging in DevTools
+  App.init();
+})();
+</script>
+</body>
+</html>
