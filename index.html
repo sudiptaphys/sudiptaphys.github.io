@@ -118,9 +118,11 @@
   #rpm { font-size: clamp(88px, 20vh, 220px); font-weight: 700; line-height: 0.95; font-variant-numeric: tabular-nums;
     letter-spacing: -0.035em; text-shadow: 0 2px 16px rgba(0, 0, 0, 0.6); }
   #rpm-unit { font-size: clamp(24px, 4.2vh, 40px); font-weight: 600; color: var(--label2); }
-  #sim-badge { margin-left: auto; align-self: center; background: var(--orange); color: #000; font-weight: 700;
-    font-size: clamp(16px, 2.6vh, 24px); padding: 6px 16px; border-radius: 999px; }
-  #sim-badge[hidden] { display: none; }
+  .badges { margin-left: auto; align-self: center; display: flex; gap: 8px; }
+  #sim-badge, #mode-badge { font-weight: 700; font-size: clamp(16px, 2.6vh, 24px); padding: 6px 16px; border-radius: 999px; }
+  #sim-badge { background: var(--orange); color: #000; }
+  #mode-badge { background: rgba(10, 132, 255, 0.24); color: #9ccbff; box-shadow: inset 0 0 0 1px rgba(10, 132, 255, 0.55); }
+  #sim-badge[hidden], #mode-badge[hidden], #bar-zone[hidden], #bar-marker[hidden], #bar-labels[hidden] { display: none; }
 
   #bar { position: relative; height: clamp(26px, 4.4vh, 40px); margin-top: 12px; border-radius: 999px;
     background: rgba(255, 255, 255, 0.16); overflow: hidden; }
@@ -295,6 +297,7 @@
   .history-sub { font-size: 14px; color: var(--label2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
     vertical-align: 2px; background: rgba(255, 159, 10, 0.2); color: #ffc46b; }
+  .tag.tag-explore { background: rgba(10, 132, 255, 0.22); color: #9ccbff; }
   .cell.empty { color: var(--label2); font-size: 15px; line-height: 1.4; }
 
   /* ================= ride summary ================= */
@@ -442,7 +445,7 @@
       <div id="cadence">
         <div class="row">
           <span id="rpm">0</span><span id="rpm-unit">RPM</span>
-          <span id="sim-badge" hidden>Simulator</span>
+          <span class="badges"><span id="mode-badge" hidden>Explore</span><span id="sim-badge" hidden>Simulator</span></span>
         </div>
         <div id="bar"><div id="bar-zone"></div><div id="bar-fill"></div><div id="bar-marker"></div></div>
         <div id="bar-labels"><span id="bar-target-label">70</span></div>
@@ -489,6 +492,9 @@
 // user's choices are saved on the device and override these defaults.
 // ---------------------------------------------------------------------
 const DEFAULTS = Object.freeze({
+  // Mode (editable)
+  MODE: "exercise",            // "exercise" (cadence target, rewards) or "explore" (normal speed while pedalling, pause when stopped)
+
   // Ride (editable)
   TARGET_RPM: 70,              // at or above this cadence the video plays at normal speed (1.0x)
   MIN_PLAYBACK_RATE: 0.3,      // slowest speed while still pedalling
@@ -535,6 +541,7 @@ const DEFAULTS = Object.freeze({
   GOAL_TIME_MIN: 20,
   GOAL_TARGET_MIN: 10,
   GOAL_DISTANCE_KM: 5,
+  GOAL_PEDAL_MIN: 15,          // Explore mode: time pedalling
 
   // Ride summary (editable) - which parts to show
   SUM_RINGS: true,
@@ -561,6 +568,7 @@ const DEFAULTS = Object.freeze({
   SOUND_FALL_SECONDS: 2.5,     // volume falls over about this long
 
   // Fixed (not shown in Settings)
+  EXPLORE_PEDALLING_RPM: 1,    // Explore: any cadence above 0 counts as pedalling (AirBike.ino reports 0 below 10 RPM)
   KMH_AT_60_RPM: 20,           // = TARGET_KMH_AT_60_RPM in AirBike.ino; only used when the bike's own speed isn't available (simulator)
   SAMPLE_EVERY_S: 5,           // the ride's cadence chart keeps one average value per this many seconds
   RIDE_AUTOSAVE_MS: 5000,      // a ride in progress is saved this often, so a reload or crash doesn't lose it
@@ -624,6 +632,8 @@ const LIMITS = Object.freeze({
   SUM_RECENT:           { type: "bool" },
   SUM_NEXT_GOAL:        { type: "bool" },
   SOUND_SOURCE:         { type: "enum", values: ["off", "video", "music"] },
+  MODE:                 { type: "enum", values: ["exercise", "explore"] },
+  GOAL_PEDAL_MIN:       { min: 1,    max: 120, step: 1 },
   SOUND_MAX_VOLUME:     { min: 0.05, max: 1,   step: 0.05 },
   SOUND_MIN_VOLUME:     { min: 0,    max: 0.5, step: 0.05 },
   SOUND_START_OFFSET:   { min: 5,    max: 40,  step: 1 },
@@ -659,6 +669,30 @@ function sanitizeSettings(raw) {
   if (out.SOUND_MIN_VOLUME > out.SOUND_MAX_VOLUME) out.SOUND_MIN_VOLUME = out.SOUND_MAX_VOLUME;
   return out;
 }
+
+/**
+ * The values the rest of the app runs on. Exercise mode: the settings as they are.
+ * Explore mode: the same machinery with "pedalling" as the target -
+ *  - any cadence above 0 counts (target 1 RPM), so the video plays at normal speed (1.0x) whenever pedalling
+ *    and eases to a pause when stopped (same as Exercise);
+ *  - colour and volume change only when stopped (range 0 -> 1 RPM), not with cadence;
+ *  - the zone becomes "pedalling without stopping" (on at once, ends after ZONE_EXIT_SECONDS stopped):
+ *    used for the "longest without stopping" figure, never for colour, volume, ring, timer or glow;
+ *  - no bonus glow.
+ */
+function modeConfig(cfg) {
+  if (cfg.MODE !== "explore") return cfg;
+  return {
+    ...cfg,
+    TARGET_RPM: cfg.EXPLORE_PEDALLING_RPM,
+    MIN_PLAYBACK_RATE: 1,
+    COLOUR_START_OFFSET: cfg.EXPLORE_PEDALLING_RPM, COLOUR_FULL_OFFSET: 0,
+    SOUND_START_OFFSET: cfg.EXPLORE_PEDALLING_RPM, SOUND_FULL_OFFSET: 0,
+    ZONE_ENTER_SECONDS: 0, ZONE_EXIT_MARGIN_RPM: 0,
+    BONUS_GLOW: false,
+  };
+}
+const isExplore = (x) => x.MODE === "explore" || x.mode === "explore";
 
 /** Only the editable values (what gets saved). */
 function editableValues(cfg) {
@@ -802,8 +836,10 @@ function stepPlayback(state, targetRate, dt, cfg) {
  */
 function stepZone(z, rpm, dt, cfg) {
   if (!z.inZone) {
-    const aboveFor = rpm >= cfg.TARGET_RPM ? z.aboveFor + dt : 0;
-    if (aboveFor >= cfg.ZONE_ENTER_SECONDS - 1e-9) return { inZone: true, aboveFor: 0, belowFor: 0, streak: aboveFor };
+    const above = rpm >= cfg.TARGET_RPM;
+    const aboveFor = above ? z.aboveFor + dt : 0;
+    // "above" is checked too, so a 0 s entry time (Explore) can't start the zone while stopped
+    if (above && aboveFor >= cfg.ZONE_ENTER_SECONDS - 1e-9) return { inZone: true, aboveFor: 0, belowFor: 0, streak: aboveFor };
     return { inZone: false, aboveFor, belowFor: 0, streak: 0 };
   }
   const belowFor = rpm < cfg.TARGET_RPM - cfg.ZONE_EXIT_MARGIN_RPM ? z.belowFor + dt : 0;
@@ -813,7 +849,8 @@ function stepZone(z, rpm, dt, cfg) {
 
 const NEW_ZONE = Object.freeze({ inZone: false, aboveFor: 0, belowFor: 0, streak: 0 });
 
-function bonusActive(z, cfg) { return z.inZone && z.streak >= cfg.BONUS_AFTER_SECONDS - 1e-6; }
+/** The golden-glow bonus: only when the warm glow is switched on (it's off in Explore). */
+function bonusActive(z, cfg) { return cfg.BONUS_GLOW && z.inZone && z.streak >= cfg.BONUS_AFTER_SECONDS - 1e-6; }
 
 /** 0 at or below startRpm, 1 at or above fullRpm, smooth S-curve between. */
 function rampLevel(rpm, startRpm, fullRpm) {
@@ -917,7 +954,7 @@ function newRide(now, cfg) {
   return {
     v: 1, id: "ride-" + now.toString(36) + "-" + Math.floor(Math.random() * 1679616).toString(36),
     startedAt: now, endedAt: now, elapsedS: 0, pedalS: 0, atTargetS: 0, distanceM: 0, avgRpm: 0, maxRpm: 0,
-    longestStreakS: 0, bonusS: 0, targetRpm: cfg.TARGET_RPM, simulator: false,
+    longestStreakS: 0, bonusS: 0, targetRpm: cfg.TARGET_RPM, simulator: false, mode: cfg.MODE === "explore" ? "explore" : "exercise",
     samples: [], sampleEveryS: cfg.SAMPLE_EVERY_S,
     // working values while riding
     rpmTime: 0, streakS: 0, bucketS: 0, bucketSum: 0,
@@ -960,6 +997,7 @@ function finishRide(r, now) {
     elapsedS: round(r.elapsedS), pedalS: round(r.pedalS), atTargetS: round(r.atTargetS), distanceM: round(r.distanceM),
     avgRpm: r.pedalS > 0 ? round(r.rpmTime / r.pedalS) : 0, maxRpm: round(r.maxRpm),
     longestStreakS: round(r.longestStreakS), bonusS: round(r.bonusS), targetRpm: r.targetRpm, simulator: !!r.simulator,
+    mode: r.mode === "explore" ? "explore" : "exercise",
     samples, sampleEveryS: r.sampleEveryS,
   };
 }
@@ -972,7 +1010,7 @@ const okNumber = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0;
 /** Validate a saved ride; returns a clean copy or null. activeRide = also check the working values. */
 function sanitizeRide(raw, activeRide = false) {
   if (!raw || typeof raw !== "object" || typeof raw.id !== "string" || !raw.id) return null;
-  const out = { v: 1, id: raw.id.slice(0, 60), simulator: raw.simulator === true };
+  const out = { v: 1, id: raw.id.slice(0, 60), simulator: raw.simulator === true, mode: raw.mode === "explore" ? "explore" : "exercise" };   // rides saved before Explore existed are Exercise
   for (const k of RIDE_NUMBERS.concat(activeRide ? ACTIVE_NUMBERS : [])) {
     if (!okNumber(raw[k])) return null;
     out[k] = raw[k];
@@ -987,32 +1025,39 @@ function sanitizeRide(raw, activeRide = false) {
  * (real rides with real rides, simulator rides with simulator rides). Most important first.
  */
 function rideAwards(ride, saved, cfg) {
-  const prev = saved.filter((p) => p.id !== ride.id && p.startedAt < ride.startedAt && p.simulator === ride.simulator);
+  const ex = isExplore(ride);
+  // compared only with rides of the same kind: same mode, and real vs simulator
+  const prev = saved.filter((p) => p.id !== ride.id && p.startedAt < ride.startedAt && p.simulator === ride.simulator && isExplore(p) === ex);
   const best = (k, keep = () => true) => prev.filter(keep).reduce((m, p) => Math.max(m, p[k]), 0);
   const unit = cfg.DISTANCE_UNIT, tr = ride.targetRpm;
   const dist = (m) => { const d = fmtDistance(m, unit); return `${d.value} ${d.unit}`; };
   const A = [];
   const add = (id, title, detail, medal, icon) => A.push({ id, title, detail, medal, icon });
 
-  if (!prev.length) add("first", "First ride", "The first ride saved on this device", "gold", "star");
+  if (!prev.length) add("first", ex ? "First Explore ride" : "First ride", ex ? "The first Explore ride saved on this device" : "The first ride saved on this device", "gold", "star");
   else {
-    if (ride.atTargetS >= 60 && ride.atTargetS > best("atTargetS")) add("pb-target", "Most time at target", `${fmtDuration(ride.atTargetS)} at ${tr}+ RPM`, "aqua", "target");
-    if (ride.longestStreakS >= 30 && ride.longestStreakS > best("longestStreakS")) add("pb-streak", "Longest in the zone", `${fmtDuration(ride.longestStreakS)} in one go`, "gold", "flame");
+    if (ride.atTargetS >= 60 && ride.atTargetS > best("atTargetS")) {
+      add("pb-target", ex ? "Most time pedalling" : "Most time at target", ex ? fmtDuration(ride.atTargetS) : `${fmtDuration(ride.atTargetS)} at ${tr}+ RPM`, "aqua", "target");
+    }
+    if (ride.longestStreakS >= 30 && ride.longestStreakS > best("longestStreakS")) {
+      add("pb-streak", ex ? "Longest without stopping" : "Longest in the zone", `${fmtDuration(ride.longestStreakS)} in one go`, "gold", "flame");
+    }
     if (ride.distanceM >= 200 && ride.distanceM > best("distanceM")) add("pb-distance", "Furthest ride", dist(ride.distanceM), "orange", "route");
     if (ride.elapsedS >= 120 && ride.elapsedS > best("elapsedS")) add("pb-time", "Longest ride", fmtDuration(ride.elapsedS), "blue", "timer");
     if (ride.pedalS >= 120 && ride.avgRpm > best("avgRpm", (p) => p.pedalS >= 120)) add("pb-avg", "Best average cadence", `${Math.round(ride.avgRpm)} RPM`, "aqua", "bolt");
   }
   const gTime = ride.elapsedS >= cfg.GOAL_TIME_MIN * 60;
-  const gTarget = ride.atTargetS >= cfg.GOAL_TARGET_MIN * 60;
+  const goalTargetS = (ex ? cfg.GOAL_PEDAL_MIN : cfg.GOAL_TARGET_MIN) * 60;
+  const gTarget = ride.atTargetS >= goalTargetS;
   const gDist = ride.distanceM >= cfg.GOAL_DISTANCE_KM * 1000;
-  if (gTime && gTarget && gDist) add("goals-all", "All three goals", "Ride time, time at target and distance", "gold", "rings");
+  if (gTime && gTarget && gDist) add("goals-all", "All three goals", ex ? "Ride time, time pedalling and distance" : "Ride time, time at target and distance", "gold", "rings");
   else {
-    if (gTarget) add("goal-target", "Target goal", `${fmtMinutes(cfg.GOAL_TARGET_MIN * 60)} at ${tr}+ RPM`, "aqua", "check");
+    if (gTarget) add("goal-target", ex ? "Pedalling goal" : "Target goal", ex ? `${fmtMinutes(goalTargetS)} pedalling` : `${fmtMinutes(goalTargetS)} at ${tr}+ RPM`, "aqua", "check");
     if (gTime) add("goal-time", "Ride time goal", fmtMinutes(cfg.GOAL_TIME_MIN * 60), "blue", "check");
     if (gDist) add("goal-distance", "Distance goal", dist(cfg.GOAL_DISTANCE_KM * 1000), "orange", "check");
   }
-  if (ride.longestStreakS >= 600) add("zone-10", "10 minutes in the zone", "Without dropping out", "aqua", "flame");
-  else if (ride.longestStreakS >= 300) add("zone-5", "5 minutes in the zone", "Without dropping out", "aqua", "flame");
+  if (ride.longestStreakS >= 600) add("zone-10", ex ? "10 minutes non-stop" : "10 minutes in the zone", ex ? "Without stopping" : "Without dropping out", "aqua", "flame");
+  else if (ride.longestStreakS >= 300) add("zone-5", ex ? "5 minutes non-stop" : "5 minutes in the zone", ex ? "Without stopping" : "Without dropping out", "aqua", "flame");
   if (ride.bonusS > 0) add("glow", "Golden glow", `Earned for ${fmtDuration(ride.bonusS)}`, "gold", "sun");
 
   // Rides on consecutive days - only on the first ride of the day.
@@ -1042,36 +1087,47 @@ const HEADLINES = {
   "pb-streak": "Your longest time in the zone!", "zone-10": "10 minutes in the zone!", "goal-target": "Target goal reached!",
   "pb-distance": "Your furthest ride yet!", "pb-time": "Your longest ride yet!", "glow": "You earned the golden glow!",
 };
+const HEADLINES_EXPLORE = {
+  "first": "Your first Explore ride!",
+  "pb-target": "Your most time pedalling!", "pb-streak": "Your longest ride without stopping!",
+  "zone-10": "10 minutes without stopping!", "goal-target": "Pedalling goal reached!",
+};
 function rideHeadline(ride, awards) {
-  const top = awards.find((a) => HEADLINES[a.id] || a.id === "days");
-  const title = !top ? "Ride complete" : top.id === "days" ? `${top.title}!` : HEADLINES[top.id];
+  const ex = isExplore(ride);
+  const name = (id) => (ex && HEADLINES_EXPLORE[id]) || HEADLINES[id];
+  const top = awards.find((a) => name(a.id) || a.id === "days");
+  const title = !top ? "Ride complete" : top.id === "days" ? `${top.title}!` : name(top.id);
   const sub = ride.elapsedS < 60
     ? "A short one today. Every ride counts."
-    : `${fmtMinutes(ride.elapsedS)} on the bike, with ${fmtMinutes(ride.atTargetS)} at ${ride.targetRpm} RPM or more.`;
+    : ex ? `${fmtMinutes(ride.elapsedS)} on the bike, ${fmtMinutes(ride.atTargetS)} of it pedalling.`
+      : `${fmtMinutes(ride.elapsedS)} on the bike, with ${fmtMinutes(ride.atTargetS)} at ${ride.targetRpm} RPM or more.`;
   return { title, sub };
 }
 
 /** A small, reachable aim for next time. */
 function nextGoal(ride, cfg) {
-  const goal = cfg.GOAL_TARGET_MIN * 60, tr = ride.targetRpm;
+  const ex = isExplore(ride);
+  const goal = (ex ? cfg.GOAL_PEDAL_MIN : cfg.GOAL_TARGET_MIN) * 60, tr = ride.targetRpm;
   if (ride.atTargetS < goal) {
     const aim = Math.min(goal, Math.max(60, Math.ceil((ride.atTargetS + 30) / 60) * 60));
-    return { title: `Aim for ${fmtMinutes(aim)} at ${tr}+ RPM`, detail: `Today: ${fmtDuration(ride.atTargetS)}. Goal: ${fmtMinutes(goal)}.` };
+    return { title: ex ? `Aim for ${fmtMinutes(aim)} of pedalling` : `Aim for ${fmtMinutes(aim)} at ${tr}+ RPM`, detail: `Today: ${fmtDuration(ride.atTargetS)}. Goal: ${fmtMinutes(goal)}.` };
   }
   const aim = Math.max(60, Math.ceil((ride.longestStreakS + 30) / 60) * 60);
-  return { title: `Stay in the zone for ${fmtMinutes(aim)} in one go`, detail: `Today's longest: ${fmtDuration(ride.longestStreakS)}.` };
+  return { title: ex ? `Pedal for ${fmtMinutes(aim)} without stopping` : `Stay in the zone for ${fmtMinutes(aim)} in one go`, detail: `Today's longest: ${fmtDuration(ride.longestStreakS)}.` };
 }
 
 const csvCell = (v) => { const s = String(v); return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
 function ridesToCSV(rides, unit) {
   const u = unit === "mi" ? "mi" : "km";
   const head = ["Date", "Start time", "Ride time (min)", "Time at target (min)", "Target (RPM)", `Distance (${u})`,
-    "Average cadence (RPM)", "Top cadence (RPM)", "Longest in zone (min)", "Golden glow (min)", "Simulator"];
+    "Average cadence (RPM)", "Top cadence (RPM)", "Longest streak (min)", "Golden glow (min)", "Simulator", "Mode", "Pedalling time (min)"];
   const rows = rides.slice().sort((a, b) => a.startedAt - b.startedAt).map((r) => {
     const d = new Date(r.startedAt);
+    const ex = isExplore(r);   // Explore has no target: those columns stay empty; "longest" is without stopping
     return [dayKey(r.startedAt), `${pad2(d.getHours())}:${pad2(d.getMinutes())}`, (r.elapsedS / 60).toFixed(2),
-      (r.atTargetS / 60).toFixed(2), r.targetRpm, (r.distanceM / (u === "mi" ? M_PER_MILE : 1000)).toFixed(3),
-      r.avgRpm.toFixed(1), r.maxRpm.toFixed(1), (r.longestStreakS / 60).toFixed(2), (r.bonusS / 60).toFixed(2), r.simulator ? "yes" : "no"];
+      ex ? "" : (r.atTargetS / 60).toFixed(2), ex ? "" : r.targetRpm, (r.distanceM / (u === "mi" ? M_PER_MILE : 1000)).toFixed(3),
+      r.avgRpm.toFixed(1), r.maxRpm.toFixed(1), (r.longestStreakS / 60).toFixed(2), (r.bonusS / 60).toFixed(2), r.simulator ? "yes" : "no",
+      ex ? "Explore" : "Exercise", (r.pedalS / 60).toFixed(2)];
   });
   return [head, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n") + "\r\n";
 }
@@ -1080,7 +1136,7 @@ globalThis.AirBikeCore = {
   DEFAULTS, CONFIG, LIMITS, FTMS, sanitizeSettings, editableValues,
   parseIndoorBikeData, effectiveCadence, targetRateForCadence, stepPlayback,
   stepZone, NEW_ZONE, bonusActive, clarityTarget, easeToward, lookFor,
-  rampLevel, soundLevelTarget, volumeFor,
+  rampLevel, soundLevelTarget, volumeFor, modeConfig, isExplore,
   dayKey, weekStart, fmtDuration, fmtMinutes, fmtDistance, speedFromCadence,
   newRide, stepRide, finishRide, sanitizeRide, rideAwards, rideHeadline, nextGoal, ridesToCSV,
 };
@@ -1101,6 +1157,7 @@ globalThis.AirBikeCore = {
     soundLevelTarget, volumeFor,
     dayKey, fmtDuration, fmtMinutes, fmtDistance, speedFromCadence,
     newRide, stepRide, finishRide, sanitizeRide, rideAwards, rideHeadline, nextGoal, ridesToCSV,
+    modeConfig, isExplore,
   } = globalThis.AirBikeCore;
   const $ = (id) => document.getElementById(id);
 
@@ -1137,17 +1194,21 @@ globalThis.AirBikeCore = {
   };
 
   const cfg = sanitizeSettings(Store.load());   // the live settings everything reads
+  let mcfg = modeConfig(cfg);                    // the same, adjusted for Explore mode (see modeConfig)
+  const explore = () => cfg.MODE === "explore";
 
   const Settings = {
     listeners: [],
     onChange(fn) { this.listeners.push(fn); },
     update(patch) {
       Object.assign(cfg, sanitizeSettings({ ...editableValues(cfg), ...patch }));
+      mcfg = modeConfig(cfg);
       Store.saveSoon();
       this.listeners.forEach((fn) => fn());
     },
     reset() {
       Object.assign(cfg, sanitizeSettings({}));
+      mcfg = modeConfig(cfg);
       Store.flush();
       this.listeners.forEach((fn) => fn());
     },
@@ -1190,12 +1251,20 @@ globalThis.AirBikeCore = {
     },
 
     initBar() {
+      const ex = explore();
+      // Explore has no target: no green zone, marker or target label on the bar
+      $("bar-zone").hidden = ex; $("bar-marker").hidden = ex; $("bar-labels").hidden = ex;
+      $("mode-badge").hidden = !ex;
+      const ph = document.querySelectorAll("#placeholder p")[1];
+      if (ph) ph.textContent = ex
+        ? "Explore mode: the video plays at normal speed while you pedal, and pauses when you stop."
+        : "The video plays at full speed at your target cadence, slows below it, and pauses when pedalling stops.";
       const zoneStart = Math.min(1, cfg.TARGET_RPM / cfg.DISPLAY_MAX_RPM) * 100;
       $("bar-zone").style.left = zoneStart + "%";
       $("bar-marker").style.left = zoneStart + "%";
       $("bar-target-label").style.left = zoneStart + "%";
       $("bar-target-label").textContent = String(cfg.TARGET_RPM);
-      $("stat-target-l").textContent = `At ${cfg.TARGET_RPM}+ RPM`;
+      $("stat-target-l").textContent = ex ? "Pedalling" : `At ${cfg.TARGET_RPM}+ RPM`;
       $("speed-line").hidden = !cfg.HUD_VIDEO_SPEED;
       $("video").style.objectFit = cfg.VIDEO_FIT;
       $("sim-slider").max = String(cfg.SIM_MAX_RPM);
@@ -1212,7 +1281,7 @@ globalThis.AirBikeCore = {
       const widthText = pct.toFixed(1) + "%";
       if (this.lastShown.width !== widthText) { fill.style.width = widthText; this.lastShown.width = widthText; }
       // Green at the target; stays green for small (1 RPM) wobbles below it, and while in the zone.
-      this.barGreen = inZone || cad.rpm >= cfg.TARGET_RPM || (this.barGreen && cad.rpm >= cfg.TARGET_RPM - 1);
+      this.barGreen = !explore() && (inZone || cad.rpm >= cfg.TARGET_RPM || (this.barGreen && cad.rpm >= cfg.TARGET_RPM - 1));
       fill.classList.toggle("in-zone", this.barGreen);
 
       let line;
@@ -1448,13 +1517,15 @@ globalThis.AirBikeCore = {
     },
 
     tick(dt, targetRate) {
-      const next = stepPlayback(this.state, targetRate, dt, cfg);
+      const next = stepPlayback(this.state, targetRate, dt, mcfg);
       this.state = next;
       if (!this.hasVideo || this.el.readyState < 1 /* HAVE_METADATA */ || this.el.error) return;
 
       if (next.playing) {
         const r = Math.min(cfg.BROWSER_MAX_RATE, Math.max(cfg.BROWSER_MIN_RATE, next.rate));
-        if (Math.abs(this.el.playbackRate - r) > 0.004) {
+        // Small changes are skipped while easing; once settled, land exactly on the target (e.g. 1.0x).
+        const settled = next.rate === targetRate;
+        if (this.el.playbackRate !== r && (settled || Math.abs(this.el.playbackRate - r) > 0.004)) {
           try { this.el.playbackRate = r; } catch (e) { console.warn("playbackRate rejected", r, e.name); }
         }
         if (this.el.paused && !this.playPending) {
@@ -1494,12 +1565,14 @@ globalThis.AirBikeCore = {
     init() { this.clarity = cfg.VISUAL_REWARD ? 0 : 1; },
 
     update({ rpm, dt }) {
-      this.zone = stepZone(this.zone, rpm, dt, cfg);
-      this.bonus = bonusActive(this.zone, cfg);
+      // Explore: the "zone" is pedalling without stopping - it feeds the ride record only, never the visuals.
+      this.zone = stepZone(this.zone, rpm, dt, mcfg);
+      this.bonus = !explore() && bonusActive(this.zone, mcfg);
+      const holdColour = !explore() && this.zone.inZone;
 
       let target, rise = cfg.CLARITY_RISE_SECONDS, fall = cfg.CLARITY_FALL_SECONDS;
-      if (this.preview.rpm != null) { target = clarityTarget(this.preview.rpm, false, cfg); rise = fall = 0.3; }
-      else target = clarityTarget(rpm, this.zone.inZone, cfg);
+      if (this.preview.rpm != null) { target = clarityTarget(this.preview.rpm, false, mcfg); rise = fall = 0.3; }
+      else target = clarityTarget(rpm, holdColour, mcfg);
       this.clarity = easeToward(this.clarity, target, dt, rise, fall);
 
       // A glow shown only as a Settings preview appears and disappears quickly; the real reward fades slowly.
@@ -1509,7 +1582,7 @@ globalThis.AirBikeCore = {
       const glowOn = cfg.BONUS_GLOW && (this.preview.glow || this.bonus);
       this.glow = easeToward(this.glow, glowOn ? 1 : 0, dt, glowFade, glowFade);
 
-      this.apply(lookFor(this.clarity, this.glow, cfg));
+      this.apply(lookFor(this.clarity, this.glow, mcfg));
       this.renderZone();
     },
 
@@ -1525,7 +1598,7 @@ globalThis.AirBikeCore = {
     },
 
     renderZone() {
-      const z = this.zone;
+      const z = explore() ? NEW_ZONE : this.zone;   // no ring or zone timer in Explore
       const classes = (z.inZone ? "zone" : "") + (this.bonus ? " bonus" : "");
       if (classes !== this.last.classes) {
         $("cadence").classList.toggle("zone", z.inZone && !this.bonus);
@@ -1643,7 +1716,7 @@ globalThis.AirBikeCore = {
 
     update(rpm, inZone, dt) {
       const src = cfg.SOUND_SOURCE;
-      const target = src === "off" ? 0 : soundLevelTarget(rpm, inZone, cfg);
+      const target = src === "off" ? 0 : soundLevelTarget(rpm, inZone && !explore(), mcfg);
       this.level = easeToward(this.level, target, dt, cfg.SOUND_RISE_SECONDS, cfg.SOUND_FALL_SECONDS);
       const vol = this.userMuted ? 0 : volumeFor(this.level, cfg);
 
@@ -1779,7 +1852,7 @@ globalThis.AirBikeCore = {
 
     start() {
       if (this.state !== "none") return;
-      this.ride = newRide(Date.now(), cfg);
+      this.ride = newRide(Date.now(), mcfg);
       this.state = "active";
       UI.clearMessage("ride");
       this.persist();
@@ -1804,7 +1877,7 @@ globalThis.AirBikeCore = {
     update(input, dt) {
       if (this.state === "none" && cfg.AUTO_START && input.rpm > 0 && !Summary.isOpen) this.start();
       if (this.state === "active") {
-        stepRide(this.ride, input, dt, cfg);
+        stepRide(this.ride, input, dt, mcfg);
         if (performance.now() - this.lastPersist > cfg.RIDE_AUTOSAVE_MS) this.persist();
       }
       this.render();
@@ -1821,6 +1894,7 @@ globalThis.AirBikeCore = {
       if (a.pending) { Summary.open(a.pending, "new"); return; }
       this.ride = a.ride;
       this.state = "paused";
+      if ((a.ride.mode === "explore") !== explore()) Settings.update({ MODE: a.ride.mode === "explore" ? "explore" : "exercise" });
       const t = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(a.ride.startedAt);
       UI.showMessage("ride", `Your ride from ${t} was kept. Press Resume to carry on, or Finish to see how it went.`, "info");
       this.render();
@@ -1946,8 +2020,10 @@ globalThis.AirBikeCore = {
     // ---------- building the page ----------
     render() {
       const r = this.ride, c = cfg;
+      const ex = isExplore(r);
       const others = RideStore.list.filter((p) => p.id !== r.id);
-      const earlier = others.filter((p) => p.simulator === r.simulator && p.startedAt < r.startedAt);
+      const same = (p) => p.simulator === r.simulator && isExplore(p) === ex;   // compare like with like
+      const earlier = others.filter((p) => same(p) && p.startedAt < r.startedAt);
       const last = earlier[earlier.length - 1] || null;
       const awards = rideAwards(r, others, c);
       const head = rideHeadline(r, awards);
@@ -1955,6 +2031,7 @@ globalThis.AirBikeCore = {
       body.textContent = "";
 
       const date = h("p", { class: "sum-date", text: fmtDate(r.startedAt, { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }) });
+      if (ex) date.append(h("span", { class: "tag tag-explore", text: "Explore" }));
       if (r.simulator) date.append(h("span", { class: "tag", text: "Simulator ride" }));
       body.append(date, h("h1", { class: "sum-title", id: "sum-title", text: head.title }), h("p", { class: "sum-sub", text: head.sub }));
 
@@ -1966,13 +2043,13 @@ globalThis.AirBikeCore = {
       if (c.SUM_AWARDS && awards.length) grid.append(this.awardsCard(awards));
       if (c.SUM_CHART) grid.append(h("section", { class: "card chart-card", "data-section": "chart" }, [
         h("h2", { class: "card-title", text: "Cadence" }),
-        h("p", { class: "card-sub", text: `Average ${Math.round(r.avgRpm)} RPM while pedalling. The shaded band is ${r.targetRpm} RPM and above.` }),
+        h("p", { class: "card-sub", text: ex ? `Average ${Math.round(r.avgRpm)} RPM while pedalling.` : `Average ${Math.round(r.avgRpm)} RPM while pedalling. The shaded band is ${r.targetRpm} RPM and above.` }),
         h("div", { class: "chart", id: "chart-cadence" }),
       ]));
       const recent = earlier.concat(r).slice(-10);
       if (c.SUM_RECENT) grid.append(h("section", { class: "card recent-card", "data-section": "recent" }, [
-        h("h2", { class: "card-title", text: "Time at target" }),
-        h("p", { class: "card-sub", text: recent.length > 1 ? `Your last ${recent.length} rides, minutes at ${r.targetRpm}+ RPM` : "This ride. Your next rides will appear here." }),
+        h("h2", { class: "card-title", text: ex ? "Time pedalling" : "Time at target" }),
+        h("p", { class: "card-sub", text: recent.length > 1 ? `Your last ${recent.length} ${ex ? "Explore rides, minutes pedalling" : `rides, minutes at ${r.targetRpm}+ RPM`}` : "This ride. Your next rides will appear here." }),
         h("div", { class: "chart", id: "chart-recent" }),
       ]));
       if (c.SUM_NEXT_GOAL) {
@@ -1986,22 +2063,23 @@ globalThis.AirBikeCore = {
         if (!c.SUM_RECENT) card.style.gridColumn = "span 12";
         grid.append(card);
       }
-      const all = others.filter((p) => p.simulator === r.simulator).concat(r);
+      const all = others.filter(same).concat(r);
       const total = all.reduce((s, p) => s + p.distanceM, 0);
       const td = fmtDistance(total, c.DISTANCE_UNIT);
-      grid.append(h("p", { class: "sum-lifetime", text: `${all.length} ${all.length === 1 ? "ride" : "rides"} and ${td.value} ${td.unit} so far${r.simulator ? " in the simulator" : ""}.` }));
+      grid.append(h("p", { class: "sum-lifetime", text: `${all.length} ${ex ? "Explore " : ""}${all.length === 1 ? "ride" : "rides"} and ${td.value} ${td.unit} so far${r.simulator ? " in the simulator" : ""}.` }));
 
       this.recentData = recent;
       this.renderActions();
     },
 
     ringsCard(r) {
-      const c = cfg, unit = c.DISTANCE_UNIT;
+      const c = cfg, unit = c.DISTANCE_UNIT, ex = isExplore(r);
+      const goal2 = (ex ? c.GOAL_PEDAL_MIN : c.GOAL_TARGET_MIN) * 60;
       const goalDist = fmtDistance(c.GOAL_DISTANCE_KM * 1000, unit);
       const d = fmtDistance(r.distanceM, unit);
       const items = [
         { key: "time", label: "Ride time", value: fmtDuration(r.elapsedS), goal: `/ ${fmtMinutes(c.GOAL_TIME_MIN * 60)}`, p: r.elapsedS / (c.GOAL_TIME_MIN * 60) },
-        { key: "target", label: `At ${r.targetRpm}+ RPM`, value: fmtDuration(r.atTargetS), goal: `/ ${fmtMinutes(c.GOAL_TARGET_MIN * 60)}`, p: r.atTargetS / (c.GOAL_TARGET_MIN * 60) },
+        { key: "target", label: ex ? "Pedalling" : `At ${r.targetRpm}+ RPM`, value: fmtDuration(r.atTargetS), goal: `/ ${fmtMinutes(goal2)}`, p: r.atTargetS / goal2 },
         { key: "distance", label: "Distance", value: `${d.value}`, goal: `/ ${goalDist.value.replace(/\.?0+$/, "")} ${d.unit}`, p: r.distanceM / (c.GOAL_DISTANCE_KM * 1000) },
       ];
       // concentric rings: outer = ride time, middle = time at target, inner = distance
@@ -2043,14 +2121,14 @@ globalThis.AirBikeCore = {
     },
 
     tiles(r, earlier, last) {
-      const c = cfg, unit = c.DISTANCE_UNIT;
+      const c = cfg, unit = c.DISTANCE_UNIT, ex = isExplore(r);
       const defs = [
         { key: "SUM_TIME", label: "Ride time", field: "elapsedS", val: (x) => [fmtDuration(x), ""], delta: (d) => fmtDuration(d) },
-        { key: "SUM_TARGET", label: `At ${r.targetRpm}+ RPM`, field: "atTargetS", val: (x) => [fmtDuration(x), ""], delta: (d) => fmtDuration(d) },
+        { key: "SUM_TARGET", label: ex ? "Pedalling" : `At ${r.targetRpm}+ RPM`, field: "atTargetS", val: (x) => [fmtDuration(x), ""], delta: (d) => fmtDuration(d) },
         { key: "SUM_DISTANCE", label: "Distance", field: "distanceM", val: (x) => { const d = fmtDistance(x, unit); return [d.value, d.unit]; }, delta: (d) => { const x = fmtDistance(d, unit); return `${x.value} ${x.unit}`; } },
         { key: "SUM_AVG_RPM", label: "Average cadence", field: "avgRpm", val: (x) => [String(Math.round(x)), "RPM"], delta: (d) => `${Math.round(d)} RPM` },
         { key: "SUM_MAX_RPM", label: "Top cadence", field: "maxRpm", val: (x) => [String(Math.round(x)), "RPM"], delta: (d) => `${Math.round(d)} RPM` },
-        { key: "SUM_STREAK", label: "Longest in the zone", field: "longestStreakS", val: (x) => [fmtDuration(x), ""], delta: (d) => fmtDuration(d) },
+        { key: "SUM_STREAK", label: ex ? "Longest without stopping" : "Longest in the zone", field: "longestStreakS", val: (x) => [fmtDuration(x), ""], delta: (d) => fmtDuration(d) },
       ].filter((d) => c[d.key]);
       if (!defs.length) return null;
       const grid = h("div", { class: "tiles", "data-section": "tiles" });
@@ -2112,7 +2190,8 @@ globalThis.AirBikeCore = {
       if (s.length < 2) { box.append(h("div", { class: "empty-note", text: "The ride was too short for a chart." })); return; }
       const W = Math.max(280, box.clientWidth), H = 220, L = 36, R = 12, T = 12, B = 28;
       const every = r.sampleEveryS, span = s.length * every;
-      const yMax = Math.ceil(Math.max(r.targetRpm + 20, Math.max(...s) + 5) / 20) * 20;
+      const ex = isExplore(r);
+      const yMax = Math.ceil(Math.max(ex ? 40 : r.targetRpm + 20, Math.max(...s) + 5) / 20) * 20;
       const x = (t) => L + (t / span) * (W - L - R), y = (v) => T + (1 - v / yMax) * (H - T - B);
       const pts = s.map((v, i) => [x((i + 0.5) * every), y(v)]);
       let line = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
@@ -2129,10 +2208,10 @@ globalThis.AirBikeCore = {
       for (let m = 0; m <= mins + 1e-9; m += stepMin) xTicks.push(m);
       const ty = y(r.targetRpm);
       box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="Cadence during the ride, average ${Math.round(r.avgRpm)} RPM, top ${Math.round(r.maxRpm)} RPM">
-        <rect x="${L}" y="${T}" width="${W - L - R}" height="${(ty - T).toFixed(1)}" fill="${RING.target}" fill-opacity="0.12"/>
+        ${ex ? "" : `<rect x="${L}" y="${T}" width="${W - L - R}" height="${(ty - T).toFixed(1)}" fill="${RING.target}" fill-opacity="0.12"/>`}
         ${yTicks.map((v) => `<line x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="rgba(255,255,255,${v === 0 ? 0.22 : 0.08})" stroke-width="1"/><text x="${L - 8}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${v}</text>`).join("")}
-        <line x1="${L}" x2="${W - R}" y1="${ty.toFixed(1)}" y2="${ty.toFixed(1)}" stroke="${RING.target}" stroke-width="1.5"/>
-        <text x="${W - R - 4}" y="${(ty + 16).toFixed(1)}" text-anchor="end">Target ${r.targetRpm} RPM</text>
+        ${ex ? "" : `<line x1="${L}" x2="${W - R}" y1="${ty.toFixed(1)}" y2="${ty.toFixed(1)}" stroke="${RING.target}" stroke-width="1.5"/>
+        <text x="${W - R - 4}" y="${(ty + 16).toFixed(1)}" text-anchor="end">Target ${r.targetRpm} RPM</text>`}
         ${xTicks.map((m) => `<text x="${x(m * 60).toFixed(1)}" y="${H - 8}" text-anchor="middle">${m} min</text>`).join("")}
         <path d="${area}" fill="${RING.time}" fill-opacity="0.12"/>
         <path d="${line}" fill="none" stroke="${RING.time}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
@@ -2157,7 +2236,7 @@ globalThis.AirBikeCore = {
 
     recentChart(box, rides) {
       box.textContent = "";
-      const r = this.ride, goal = cfg.GOAL_TARGET_MIN;
+      const r = this.ride, ex = isExplore(r), goal = ex ? cfg.GOAL_PEDAL_MIN : cfg.GOAL_TARGET_MIN;
       const W = Math.max(260, box.clientWidth), H = 200, L = 8, R = 8, T = 22, B = 28;
       const vals = rides.map((p) => p.atTargetS / 60);
       const yMax = Math.max(goal, ...vals) * 1.15 || 1;
@@ -2184,7 +2263,7 @@ globalThis.AirBikeCore = {
         const show = () => {
           const bx = box.getBoundingClientRect();
           const cx = (L + slot * (i + 0.5)) / W * bx.width, cy = y(vals[i]) / H * bx.height;
-          this.tip(box, `<b>${fmtDuration(p.atTargetS)}</b> at ${p.targetRpm}+ RPM, ${fmtDate(p.startedAt, { day: "numeric", month: "short" })}`, cx, cy);
+          this.tip(box, `<b>${fmtDuration(p.atTargetS)}</b> ${ex ? "pedalling" : `at ${p.targetRpm}+ RPM`}, ${fmtDate(p.startedAt, { day: "numeric", month: "short" })}`, cx, cy);
         };
         g.addEventListener("pointerenter", show);
         g.addEventListener("pointerdown", show);
@@ -2361,24 +2440,30 @@ globalThis.AirBikeCore = {
   const visualOn = (c) => c.VISUAL_REWARD;
   const glowOn = (c) => c.BONUS_GLOW;
   const soundOn = (c) => c.SOUND_SOURCE !== "off";
+  const exerciseOnly = (c) => c.MODE !== "explore";
+  const EXERCISE_NOTE = "Explore mode has no target cadence, so these only apply in Exercise mode.";
   const SOUND_NAMES = { off: "Off", video: "Video sound", music: "Music" };
 
   const PAGES = {
     main: {
       title: "Settings",
       groups: [
-        { rows: [{ type: "stepper", key: "TARGET_RPM", label: "Target cadence", format: fmtRpm }],
-          footer: (c) => `At ${c.TARGET_RPM} RPM or more the video plays at full speed and the bar turns green. Time at ${c.TARGET_RPM}+ RPM is counted on screen.` },
+        { rows: [
+          { type: "segmented", key: "MODE", label: "Mode", options: [["exercise", "Exercise"], ["explore", "Explore"]], enabled: () => Session.state === "none" },
+          { type: "stepper", key: "TARGET_RPM", label: "Target cadence", format: fmtRpm, enabled: exerciseOnly },
+        ], footer: (c) => (Session.state !== "none" ? "Finish the current ride to change mode. " : "") + (c.MODE === "explore"
+          ? "Explore: the video plays at normal speed while pedalling, and pauses when pedalling stops. The picture greys and music goes quiet only when stopped. No target cadence or rewards."
+          : `Exercise: at ${c.TARGET_RPM} RPM or more the video plays at full speed and the bar turns green; slower pedalling slows the video, greys the picture and lowers the sound.`) },
         { icons: true, rows: [
-          { type: "link", page: "ride", icon: "gauge", tint: "var(--blue)", label: "Ride", value: (c) => fmtRpm(c.TARGET_RPM) },
+          { type: "link", page: "ride", icon: "gauge", tint: "var(--blue)", label: "Ride", value: (c) => (c.MODE === "explore" ? "Normal speed" : fmtRpm(c.TARGET_RPM)) },
           { type: "link", page: "screen", icon: "display", tint: "#32ade6", label: "Ride screen", value: (c) => `${[c.HUD_TIME, c.HUD_TARGET_TIME, c.HUD_DISTANCE].filter(Boolean).length} of 3 shown` },
           { type: "link", page: "visual", icon: "contrast", tint: "var(--indigo)", label: "Visual reward", value: (c) => (c.VISUAL_REWARD ? "On" : "Off") },
           { type: "link", page: "sound", icon: "speaker", tint: "#ff2d55", label: "Sound", value: (c) => SOUND_NAMES[c.SOUND_SOURCE] },
-          { type: "link", page: "bonus", icon: "sun", tint: "var(--orange)", label: "Bonus glow", value: (c) => (c.BONUS_GLOW ? `After ${fmtClock(c.BONUS_AFTER_SECONDS)}` : "Off") },
-          { type: "link", page: "zone", icon: "timer", tint: "var(--green)", label: "Zone timing", value: (c) => `${c.ZONE_ENTER_SECONDS} s in, ${c.ZONE_EXIT_SECONDS} s out` },
+          { type: "link", page: "bonus", icon: "sun", tint: "var(--orange)", label: "Bonus glow", value: (c) => (c.MODE === "explore" ? "Exercise only" : c.BONUS_GLOW ? `After ${fmtClock(c.BONUS_AFTER_SECONDS)}` : "Off") },
+          { type: "link", page: "zone", icon: "timer", tint: "var(--green)", label: "Zone timing", value: (c) => (c.MODE === "explore" ? "Exercise only" : `${c.ZONE_ENTER_SECONDS} s in, ${c.ZONE_EXIT_SECONDS} s out`) },
         ] },
         { icons: true, rows: [
-          { type: "link", page: "goals", icon: "flag", tint: "#ff375f", label: "Goals", value: (c) => `${c.GOAL_TARGET_MIN} min at target` },
+          { type: "link", page: "goals", icon: "flag", tint: "#ff375f", label: "Goals", value: (c) => (c.MODE === "explore" ? `${c.GOAL_PEDAL_MIN} min pedalling` : `${c.GOAL_TARGET_MIN} min at target`) },
           { type: "link", page: "summary", icon: "chart", tint: "#bf5af2", label: "Ride summary" },
           { type: "link", page: "history", icon: "clock", tint: "#ac8e68", label: "Ride history", value: () => `${RideStore.list.length} ${RideStore.list.length === 1 ? "ride" : "rides"}` },
         ] },
@@ -2408,19 +2493,21 @@ globalThis.AirBikeCore = {
         { header: "Volume", rows: [
           { type: "slider", key: "SOUND_MAX_VOLUME", label: "Volume", format: fmtPct, enabled: soundOn },
           { type: "slider", key: "SOUND_MIN_VOLUME", label: "Volume when slow", format: (v) => (v === 0 ? "Silent" : fmtPct(v)), enabled: soundOn },
-        ], footer: "Volume is the level at your target cadence and above. “Volume when slow” is the level when pedalling slowly or stopped." },
+        ], footer: (c) => (c.MODE === "explore"
+          ? "Volume is the level while pedalling. “Volume when slow” is the level when stopped (music only; video sound stops with the video)."
+          : "Volume is the level at your target cadence and above. “Volume when slow” is the level when pedalling slowly or stopped.") },
         { header: "Volume range", rows: [
-          { type: "stepper", id: "SOUND_START", label: "Sound starts rising", step: 1, format: fmtRpm, enabled: soundOn,
+          { type: "stepper", id: "SOUND_START", label: "Sound starts rising", step: 1, format: fmtRpm, enabled: (c) => soundOn(c) && exerciseOnly(c),
             get: (c) => c.TARGET_RPM - c.SOUND_START_OFFSET,
             set: (c, v) => ({ SOUND_START_OFFSET: c.TARGET_RPM - v }),
             min: (c) => c.TARGET_RPM - LIMITS.SOUND_START_OFFSET.max,
             max: (c) => c.TARGET_RPM - c.SOUND_FULL_OFFSET - 5 },
-          { type: "stepper", id: "SOUND_FULL", label: "Full volume at", step: 1, format: fmtRpm, enabled: soundOn,
+          { type: "stepper", id: "SOUND_FULL", label: "Full volume at", step: 1, format: fmtRpm, enabled: (c) => soundOn(c) && exerciseOnly(c),
             get: (c) => c.TARGET_RPM - c.SOUND_FULL_OFFSET,
             set: (c, v) => ({ SOUND_FULL_OFFSET: c.TARGET_RPM - v }),
             min: (c) => Math.max(c.TARGET_RPM - LIMITS.SOUND_FULL_OFFSET.max, c.TARGET_RPM - c.SOUND_START_OFFSET + 5),
             max: (c) => c.TARGET_RPM },
-        ], footer: (c) => `Below ${c.TARGET_RPM - c.SOUND_START_OFFSET} RPM the volume stays at its lowest; from ${c.TARGET_RPM - c.SOUND_FULL_OFFSET} RPM it's steady. Once in the zone it stays steady until cadence really drops, like the colour.` },
+        ], footer: (c) => c.MODE === "explore" ? "Explore mode: full volume whenever pedalling. When pedalling stops, video sound stops with the video and music drops to “Volume when slow”." : `Below ${c.TARGET_RPM - c.SOUND_START_OFFSET} RPM the volume stays at its lowest; from ${c.TARGET_RPM - c.SOUND_FULL_OFFSET} RPM it's steady. Once in the zone it stays steady until cadence really drops, like the colour.` },
         { header: "Video sound", rows: [
           { type: "toggle", key: "SOUND_PRESERVE_PITCH", label: "Natural pitch when slowed", enabled: (c) => c.SOUND_SOURCE === "video" },
         ], footer: "On: voices and music in the video keep their normal pitch when it slows down. Off: they get deeper, like a slowed-down tape." },
@@ -2432,10 +2519,10 @@ globalThis.AirBikeCore = {
       groups: [
         { header: "Show under the cadence", rows: [
           { type: "toggle", key: "HUD_TIME", label: "Ride time" },
-          { type: "toggle", key: "HUD_TARGET_TIME", label: "Time at target", },
+          { type: "toggle", key: "HUD_TARGET_TIME", label: "Time at target (Explore: pedalling)" },
           { type: "toggle", key: "HUD_DISTANCE", label: "Distance" },
           { type: "toggle", key: "HUD_VIDEO_SPEED", label: "Video speed" },
-        ], footer: (c) => `Ride time, time at ${c.TARGET_RPM}+ RPM and distance count while a ride is being recorded (Start ride), and stop while it's paused.` },
+        ], footer: (c) => `Ride time, ${c.MODE === "explore" ? "time pedalling" : `time at ${c.TARGET_RPM}+ RPM`} and distance count while a ride is being recorded (Start ride), and stop while it's paused.` },
         { header: "Distance unit", rows: [{ type: "segmented", key: "DISTANCE_UNIT", label: "Distance unit", options: [["km", "Kilometres"], ["mi", "Miles"]] }],
           footer: `Distance is worked out from the speed the bike sends: ${DEFAULTS.KMH_AT_60_RPM} km/h at 60 RPM, as set in the AirBike sketch. It's a guide for comparing rides, not a road distance.` },
         { header: "Recording", rows: [{ type: "toggle", key: "AUTO_START", label: "Start automatically" }],
@@ -2448,9 +2535,10 @@ globalThis.AirBikeCore = {
       groups: [
         { rows: [
           { type: "stepper", key: "GOAL_TIME_MIN", label: "Ride time", format: (v) => `${v} min` },
-          { type: "stepper", key: "GOAL_TARGET_MIN", label: "Time at target", format: (v) => `${v} min` },
+          { type: "stepper", key: "GOAL_TARGET_MIN", label: "Time at target", format: (v) => `${v} min`, enabled: exerciseOnly },
+          { type: "stepper", key: "GOAL_PEDAL_MIN", label: "Time pedalling", format: (v) => `${v} min`, enabled: (c) => c.MODE === "explore" },
           { type: "stepper", key: "GOAL_DISTANCE_KM", label: "Distance", format: (v, c) => { const d = fmtDistance(v * 1000, c.DISTANCE_UNIT); return `${d.value} ${d.unit}`; } },
-        ], footer: "Each goal fills one ring on the ride summary. Reaching them earns awards. It's worth agreeing them with the physiotherapist." },
+        ], footer: "Each goal fills one ring on the ride summary and earns an award. “Time at target” is used in Exercise mode, “Time pedalling” in Explore mode. It's worth agreeing them with the physiotherapist." },
       ],
     },
 
@@ -2469,13 +2557,13 @@ globalThis.AirBikeCore = {
         ] },
         { header: "Numbers", rows: [
           { type: "toggle", key: "SUM_TIME", label: "Ride time" },
-          { type: "toggle", key: "SUM_TARGET", label: "Time at target" },
+          { type: "toggle", key: "SUM_TARGET", label: "Time at target or pedalling" },
           { type: "toggle", key: "SUM_DISTANCE", label: "Distance" },
           { type: "toggle", key: "SUM_AVG_RPM", label: "Average cadence" },
           { type: "toggle", key: "SUM_MAX_RPM", label: "Top cadence" },
-          { type: "toggle", key: "SUM_STREAK", label: "Longest in the zone" },
+          { type: "toggle", key: "SUM_STREAK", label: "Longest in the zone or non-stop" },
           { type: "toggle", key: "SUM_COMPARE", label: "Compare with last ride" },
-        ], footer: "Comparisons and “Best yet” use earlier rides of the same kind: real rides with real rides, simulator rides with simulator rides." },
+        ], footer: "Comparisons and “Best yet” use earlier rides of the same kind: Exercise with Exercise, Explore with Explore, and real rides apart from simulator rides." },
       ],
     },
 
@@ -2496,10 +2584,10 @@ globalThis.AirBikeCore = {
     ride: {
       title: "Ride",
       groups: [
-        { rows: [{ type: "stepper", key: "TARGET_RPM", label: "Target cadence", format: fmtRpm }],
-          footer: (c) => `The video plays at normal speed at ${c.TARGET_RPM} RPM or more, and slows down below that.` },
-        { rows: [{ type: "slider", key: "MIN_PLAYBACK_RATE", label: "Slowest video speed", format: (v) => `${v.toFixed(2)}×` }],
-          footer: "While pedalling slowly, the video never plays slower than this. It pauses when pedalling stops." },
+        { rows: [{ type: "stepper", key: "TARGET_RPM", label: "Target cadence", format: fmtRpm, enabled: exerciseOnly }],
+          footer: (c) => (c.MODE === "explore" ? "Explore mode: the video plays at normal speed whenever pedalling, and pauses when pedalling stops." : `The video plays at normal speed at ${c.TARGET_RPM} RPM or more, and slows down below that.`) },
+        { rows: [{ type: "slider", key: "MIN_PLAYBACK_RATE", label: "Slowest video speed", format: (v) => `${v.toFixed(2)}×`, enabled: exerciseOnly }],
+          footer: (c) => (c.MODE === "explore" ? EXERCISE_NOTE : "While pedalling slowly, the video never plays slower than this. It pauses when pedalling stops.") },
         { header: "Picture", rows: [{ type: "segmented", key: "VIDEO_FIT", label: "Picture", options: [["cover", "Fill screen"], ["contain", "Whole video"]] }],
           footer: "Fill screen may crop the edges of the video." },
       ],
@@ -2517,19 +2605,21 @@ globalThis.AirBikeCore = {
             onInput: (v) => { SettingsSheet.previewRpm = v; Effects.preview.rpm = v; } },
         ], footer: "Drag to see the look at different cadences. The video behind this panel follows while you drag." },
         { rows: [{ type: "toggle", key: "VISUAL_REWARD", label: "Visual reward" }],
-          footer: "The picture turns grey and hazy when pedalling is slow, and clears to full colour as cadence rises." },
+          footer: (c) => (c.MODE === "explore" ? "The picture turns grey and hazy when pedalling stops, and clears when pedalling starts again."
+            : "The picture turns grey and hazy when pedalling is slow, and clears to full colour as cadence rises.") },
         { header: "Colour range", rows: [
-          { type: "stepper", id: "COLOUR_START", label: "Colour starts returning", step: 1, format: fmtRpm, enabled: visualOn,
+          { type: "stepper", id: "COLOUR_START", label: "Colour starts returning", step: 1, format: fmtRpm, enabled: (c) => visualOn(c) && exerciseOnly(c),
             get: (c) => c.TARGET_RPM - c.COLOUR_START_OFFSET,
             set: (c, v) => ({ COLOUR_START_OFFSET: c.TARGET_RPM - v }),
             min: (c) => c.TARGET_RPM - LIMITS.COLOUR_START_OFFSET.max,
             max: (c) => c.TARGET_RPM - c.COLOUR_FULL_OFFSET - 5 },
-          { type: "stepper", id: "COLOUR_FULL", label: "Full colour at", step: 1, format: fmtRpm, enabled: visualOn,
+          { type: "stepper", id: "COLOUR_FULL", label: "Full colour at", step: 1, format: fmtRpm, enabled: (c) => visualOn(c) && exerciseOnly(c),
             get: (c) => c.TARGET_RPM - c.COLOUR_FULL_OFFSET,
             set: (c, v) => ({ COLOUR_FULL_OFFSET: c.TARGET_RPM - v }),
             min: (c) => Math.max(c.TARGET_RPM - LIMITS.COLOUR_FULL_OFFSET.max, c.TARGET_RPM - c.COLOUR_START_OFFSET + 5),
             max: (c) => c.TARGET_RPM },
-        ], footer: (c) => `Below ${c.TARGET_RPM - c.COLOUR_START_OFFSET} RPM the picture stays at its greyest. Once in the zone it stays in full colour until cadence really drops.` },
+        ], footer: (c) => (c.MODE === "explore" ? "Explore mode: full colour whenever pedalling; the picture greys only when pedalling stops."
+          : `Below ${c.TARGET_RPM - c.COLOUR_START_OFFSET} RPM the picture stays at its greyest. Once in the zone it stays in full colour until cadence really drops.`) },
         { header: "When pedalling slowly", rows: [
           { type: "slider", key: "GREY_AMOUNT", label: "Colour loss", format: fmtPct, enabled: visualOn },
           { type: "slider", key: "DIM_AMOUNT", label: "Dimming", format: fmtPct, enabled: visualOn },
@@ -2541,18 +2631,18 @@ globalThis.AirBikeCore = {
 
     bonus: {
       title: "Bonus glow",
-      onEnter() { Effects.preview.glow = true; },
+      onEnter() { Effects.preview.glow = !explore(); },
       onLeave() { Effects.preview.glow = false; },
       groups: [
         { rows: [{ type: "preview", mode: "glow" }],
           footer: "While this page is open, the video behind shows the glow at the chosen strength." },
         { rows: [
-          { type: "toggle", key: "BONUS_GLOW", label: "Warm glow" },
-          { type: "stepper", key: "BONUS_AFTER_SECONDS", label: "Glow after", format: (v) => `${fmtClock(v)} min`, enabled: glowOn },
-          { type: "slider", key: "GLOW_STRENGTH", label: "Glow strength", format: fmtPct, enabled: glowOn },
-        ], footer: (c) => `After ${fmtClock(c.BONUS_AFTER_SECONDS)} in the zone, a warm glow slowly fades in. It fades out if cadence drops out of the zone.` },
-        { rows: [{ type: "toggle", key: "SHOW_STREAK", label: "Zone timer" }],
-          footer: "Shows how long the zone has been held, just above the cadence." },
+          { type: "toggle", key: "BONUS_GLOW", label: "Warm glow", enabled: exerciseOnly },
+          { type: "stepper", key: "BONUS_AFTER_SECONDS", label: "Glow after", format: (v) => `${fmtClock(v)} min`, enabled: (c) => glowOn(c) && exerciseOnly(c) },
+          { type: "slider", key: "GLOW_STRENGTH", label: "Glow strength", format: fmtPct, enabled: (c) => glowOn(c) && exerciseOnly(c) },
+        ], footer: (c) => (c.MODE === "explore" ? EXERCISE_NOTE : `After ${fmtClock(c.BONUS_AFTER_SECONDS)} in the zone, a warm glow slowly fades in. It fades out if cadence drops out of the zone.`) },
+        { rows: [{ type: "toggle", key: "SHOW_STREAK", label: "Zone timer", enabled: exerciseOnly }],
+          footer: (c) => (c.MODE === "explore" ? EXERCISE_NOTE : "Shows how long the zone has been held, just above the cadence.") },
       ],
     },
 
@@ -2560,16 +2650,16 @@ globalThis.AirBikeCore = {
       title: "Zone timing",
       groups: [
         { header: "Entering the zone", rows: [
-          { type: "stepper", key: "ZONE_ENTER_SECONDS", label: "Hold the target for", format: fmtSec },
-        ], footer: (c) => `The zone starts after ${c.ZONE_ENTER_SECONDS} s at ${c.TARGET_RPM} RPM or more.` },
+          { type: "stepper", key: "ZONE_ENTER_SECONDS", label: "Hold the target for", format: fmtSec, enabled: exerciseOnly },
+        ], footer: (c) => (c.MODE === "explore" ? EXERCISE_NOTE : `The zone starts after ${c.ZONE_ENTER_SECONDS} s at ${c.TARGET_RPM} RPM or more.`) },
         { header: "Leaving the zone", rows: [
-          { type: "stepper", id: "ZONE_EXIT_RPM", label: "Drops below", step: 1, format: fmtRpm,
+          { type: "stepper", id: "ZONE_EXIT_RPM", label: "Drops below", step: 1, format: fmtRpm, enabled: exerciseOnly,
             get: (c) => c.TARGET_RPM - c.ZONE_EXIT_MARGIN_RPM,
             set: (c, v) => ({ ZONE_EXIT_MARGIN_RPM: c.TARGET_RPM - v }),
             min: (c) => c.TARGET_RPM - LIMITS.ZONE_EXIT_MARGIN_RPM.max,
             max: (c) => c.TARGET_RPM - LIMITS.ZONE_EXIT_MARGIN_RPM.min },
           { type: "stepper", key: "ZONE_EXIT_SECONDS", label: "For longer than", format: fmtSec },
-        ], footer: (c) => `The zone ends after ${c.ZONE_EXIT_SECONDS} s below ${c.TARGET_RPM - c.ZONE_EXIT_MARGIN_RPM} RPM. These delays stop the reward switching on and off when cadence hovers around the target.` },
+        ], footer: (c) => c.MODE === "explore" ? `In Explore mode this sets how long a stop can be (${c.ZONE_EXIT_SECONDS} s) before “Longest without stopping” starts again.` : `The zone ends after ${c.ZONE_EXIT_SECONDS} s below ${c.TARGET_RPM - c.ZONE_EXIT_MARGIN_RPM} RPM. These delays stop the reward switching on and off when cadence hovers around the target.` },
       ],
     },
 
@@ -2731,6 +2821,7 @@ globalThis.AirBikeCore = {
           const i = Math.max(0, def.options.findIndex((o) => o[0] === cfg[def.key]));
           group.style.setProperty("--i", i);
           buttons.forEach((b, j) => { b.setAttribute("aria-checked", String(j === i)); b.tabIndex = j === i ? 0 : -1; });
+          setEnabled(el, def);
         },
       };
     },
@@ -2748,8 +2839,8 @@ globalThis.AirBikeCore = {
           let look, text;
           if (def.mode === "clarity") {
             const r = SettingsSheet.previewRpm;
-            const c = clarityTarget(r, false, cfg);
-            look = lookFor(c, 0, cfg, 0.35);
+            const c = clarityTarget(r, false, mcfg);
+            look = lookFor(c, 0, mcfg, 0.35);
             text = !cfg.VISUAL_REWARD ? "Visual reward is off"
               : c >= 0.999 ? `Full colour at ${r} RPM`
               : c <= 0.001 ? `Grey and hazy at ${r} RPM`
@@ -2804,10 +2895,12 @@ globalThis.AirBikeCore = {
           for (const r of rides.slice(0, 300)) {
             const d = fmtDistance(r.distanceM, cfg.DISTANCE_UNIT);
             const title = h("span", { text: fmtDate(r.startedAt, fmt) });
+            const ex = isExplore(r);
+            if (ex) title.append(h("span", { class: "tag tag-explore", text: "Explore" }));
             if (r.simulator) title.append(h("span", { class: "tag", text: "Simulator" }));
             const b = h("button", { type: "button", class: "cell link history-item", "data-ride": r.id }, [
               h("span", { class: "history-text" }, [title,
-                h("span", { class: "history-sub", text: `${fmtDuration(r.elapsedS)} ride, ${fmtDuration(r.atTargetS)} at ${r.targetRpm}+, ${d.value} ${d.unit}` })]),
+                h("span", { class: "history-sub", text: `${fmtDuration(r.elapsedS)} ride, ${fmtDuration(r.atTargetS)} ${ex ? "pedalling" : `at ${r.targetRpm}+`}, ${d.value} ${d.unit}` })]),
             ]);
             b.insertAdjacentHTML("beforeend", ICONS.chevronRight);
             b.addEventListener("click", () => Summary.open(r, "view"));
@@ -3053,7 +3146,7 @@ globalThis.AirBikeCore = {
         simulatorOn: Sim.on, simulatorRpm: Sim.rpm,
         bikeRpm: Bike.lastCadence, bikeRpmAt: Bike.lastCadenceAt, now,
       }, cfg);
-      const target = targetRateForCadence(cad.rpm, cfg);
+      const target = targetRateForCadence(cad.rpm, mcfg);
       VideoController.tick(dt, target);
       Effects.update({ rpm: cad.rpm, dt });
       Sound.update(cad.rpm, Effects.zone.inZone, dt);
