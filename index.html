@@ -262,8 +262,125 @@
   .preview .preview-caption { inset: auto auto 10px 10px; opacity: 1; padding: 5px 12px; border-radius: 999px; font-size: 14px;
     font-weight: 600; background: rgba(0, 0, 0, 0.45); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 
+  /* ================= ride session: buttons + on-screen stats ================= */
+  #app button.go { background: var(--green); color: #002a10; box-shadow: none; }
+  #stats { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; margin-top: 14px; padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12); transition: opacity 0.4s ease; }
+  #stats[hidden], #stats-hint[hidden], #speed-line[hidden], .stat[hidden] { display: none; }
+  #stats.paused { opacity: 0.55; }
+  .stat { display: flex; flex-direction: column; min-width: 0; padding: 0 12px; }
+  .stat:first-child { padding-left: 0; }
+  .stat + .stat { border-left: 1px solid rgba(255, 255, 255, 0.12); }
+  .stat-value { font-size: clamp(26px, 4.6vh, 44px); font-weight: 600; letter-spacing: -0.02em; line-height: 1.1;
+    font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .stat-unit { font-size: 0.55em; font-weight: 500; color: var(--label2); letter-spacing: 0; }
+  .stat-label { font-size: clamp(14px, 2.1vh, 19px); color: var(--label2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #stats-hint { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: clamp(16px, 2.4vh, 21px); color: var(--label2); }
+  #stats-hint.paused { color: var(--orange); }
+
+  /* ================= settings: action + history rows ================= */
+  .cell.action { color: var(--blue); cursor: pointer; }
+  .cell.action:active { background: rgba(255, 255, 255, 0.07); }
+  .cell.action.destructive { color: var(--red); justify-content: flex-start; }
+  .history-item { cursor: pointer; }
+  .history-item:active { background: rgba(255, 255, 255, 0.07); }
+  .history-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .history-sub { font-size: 14px; color: var(--label2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    vertical-align: 2px; background: rgba(255, 159, 10, 0.2); color: #ffc46b; }
+  .cell.empty { color: var(--label2); font-size: 15px; line-height: 1.4; }
+
+  /* ================= ride summary ================= */
+  #summary { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0;
+    border: 0; color: var(--label); font-family: var(--font); background: #050506; overflow: hidden; opacity: 0;
+    transition: opacity 0.45s ease; }
+  #summary.open { opacity: 1; }
+  #summary::backdrop { background: transparent; }
+  .sum-bg { position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(55% 45% at 15% 5%, rgba(57, 135, 229, 0.22), transparent 70%),
+                radial-gradient(45% 40% at 90% 15%, rgba(25, 158, 112, 0.16), transparent 70%),
+                radial-gradient(60% 45% at 55% 105%, rgba(217, 89, 38, 0.14), transparent 70%); }
+  .sum-scroll { position: absolute; top: 0; left: 0; right: 0; bottom: 92px; overflow-y: auto; overscroll-behavior: contain;
+    padding: 36px 24px 28px; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.2) transparent; }
+  .sum-inner { max-width: 1040px; margin: 0 auto; }
+  .sum-date { font-size: 17px; color: var(--label2); margin: 0 0 6px; }
+  .sum-title { font-size: clamp(34px, 5.2vw, 56px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; margin: 0; }
+  .sum-sub { font-size: clamp(17px, 2vw, 21px); line-height: 1.4; color: var(--label2); margin: 10px 0 28px; max-width: 40em; }
+  .sum-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
+  .card { grid-column: span 12; background: rgba(255, 255, 255, 0.065); border-radius: 26px; padding: 22px 24px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); position: relative; min-width: 0; }
+  .card-title { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+  .card-sub { font-size: 14px; color: var(--label2); margin: 4px 0 0; }
+
+  .hero { display: flex; align-items: center; gap: 36px; flex-wrap: wrap; padding: 28px; }
+  .rings { width: min(250px, 68vw); aspect-ratio: 1; flex: none; display: block; }
+  .ring-progress { transition: stroke-dashoffset 1.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .ring-keys { flex: 1; min-width: 240px; max-width: 440px; display: flex; flex-direction: column; gap: 20px; }
+  .ring-key { display: grid; grid-template-columns: 14px 1fr; column-gap: 14px; align-items: center; }
+  .key-dot { width: 14px; height: 14px; border-radius: 50%; }
+  .key-label { font-size: 16px; color: var(--label2); }
+  .key-value { font-size: clamp(26px, 3.2vw, 34px); font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; }
+  .key-goal { font-size: 0.55em; font-weight: 500; color: var(--label2); letter-spacing: 0; }
+  .key-pct { margin-left: 10px; font-size: 13px; font-weight: 600; color: var(--label2); padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); }
+  .key-pct.done { color: #00210d; background: #5fd69a; }
+
+  .tiles { grid-column: span 12; display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: 16px; }
+  @media (max-width: 640px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .stat-tile { background: rgba(255, 255, 255, 0.065); border-radius: 22px; padding: 18px 20px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); min-width: 0; }
+  .t-label { font-size: 15px; color: var(--label2); display: flex; align-items: center; gap: 8px; }
+  .t-value { font-size: clamp(30px, 3.4vw, 40px); font-weight: 600; letter-spacing: -0.025em; margin-top: 4px; line-height: 1.1; }
+  .t-unit { font-size: 0.5em; font-weight: 500; color: var(--label2); letter-spacing: 0; }
+  .t-delta { font-size: 14px; color: var(--label2); margin-top: 8px; }
+  .t-delta.up { color: #5fd69a; }
+  .best { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; color: #2a1a00;
+    background: linear-gradient(180deg, #ffe08a, #f2b13d); }
+
+  .medals { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 20px 16px; margin-top: 18px; }
+  .medal { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px;
+    opacity: 0; transform: translateY(8px) scale(0.9); transition: opacity 0.6s ease, transform 0.7s var(--ease); }
+  #summary.revealed .medal { opacity: 1; transform: none; }
+  .medal-disc { width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center; color: #fff;
+    box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.28), inset 0 -8px 16px rgba(0, 0, 0, 0.18), 0 10px 24px rgba(0, 0, 0, 0.35); }
+  .medal-disc svg { width: 36px; height: 36px; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25)); }
+  .medal-gold { background: radial-gradient(circle at 35% 30%, #ffe7a3, #f0b43c 55%, #c98500); }
+  .medal-aqua { background: radial-gradient(circle at 35% 30%, #8ff0cc, #22b383 55%, #127556); }
+  .medal-blue { background: radial-gradient(circle at 35% 30%, #a9cdff, #3987e5 55%, #1f5bb0); }
+  .medal-orange { background: radial-gradient(circle at 35% 30%, #ffc2a3, #e8693a 55%, #b5441a); }
+  .medal-violet { background: radial-gradient(circle at 35% 30%, #d4cbff, #8a7cf0 55%, #5a49c8); }
+  .medal-title { font-size: 15px; font-weight: 600; line-height: 1.25; }
+  .medal-detail { font-size: 13px; color: var(--label2); line-height: 1.35; }
+
+  .chart { position: relative; margin-top: 16px; }
+  .chart svg { display: block; width: 100%; overflow: visible; }
+  .chart text { fill: var(--label2); font-family: var(--font); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .chart .empty-note { color: var(--label2); font-size: 15px; padding: 24px 0; }
+  .viz-tip { position: absolute; pointer-events: none; z-index: 2; padding: 7px 11px; border-radius: 10px; font-size: 14px;
+    white-space: nowrap; background: rgba(44, 44, 46, 0.96); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); opacity: 0;
+    transform: translate(-50%, calc(-100% - 12px)); transition: opacity 0.12s ease; }
+  .viz-tip.show { opacity: 1; }
+  .viz-tip b { font-weight: 600; }
+  .recent-card { grid-column: span 7; }
+  .next-card { grid-column: span 5; display: flex; flex-direction: column; justify-content: center; gap: 10px; }
+  .next-card .next-title { font-size: clamp(22px, 2.6vw, 28px); font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
+  .next-card .next-detail { font-size: 15px; color: var(--label2); }
+  .next-icon { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: rgba(25, 158, 112, 0.22); color: #5fd69a; }
+  .next-icon svg { width: 24px; height: 24px; }
+  .sum-lifetime { grid-column: span 12; text-align: center; color: var(--label2); font-size: 15px; margin-top: 8px; }
+  @media (max-width: 860px) { .recent-card, .next-card { grid-column: span 12; } .hero { justify-content: center; } }
+
+  .sum-actions { position: absolute; left: 0; right: 0; bottom: 0; height: 92px; display: flex; align-items: center;
+    justify-content: center; gap: 14px; padding: 0 20px; background: linear-gradient(rgba(5, 5, 6, 0), rgba(5, 5, 6, 0.92) 35%); }
+  .sum-btn { min-height: 54px; min-width: 170px; padding: 0 28px; border: 0; border-radius: 999px; cursor: pointer;
+    font: 600 18px var(--font); color: var(--label); background: rgba(255, 255, 255, 0.12); transition: transform 0.15s ease, background-color 0.2s; }
+  .sum-btn:active { transform: scale(0.97); }
+  .sum-btn:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+  .sum-btn.primary { background: var(--blue); }
+  .sum-btn.destructive { color: var(--red); }
+  .sum-saved { color: #5fd69a; font-size: 16px; font-weight: 600; }
+
   @media (prefers-reduced-motion: reduce) {
-    #settings, .page, .switch::before, .seg-thumb, #streak { transition-duration: 0.01s !important; }
+    #settings, .page, .switch::before, .seg-thumb, #streak, #summary, .ring-progress, .medal { transition-duration: 0.01s !important; transition-delay: 0s !important; }
   }
 </style>
 </head>
@@ -288,6 +405,9 @@
     <button id="btn-reconnect" type="button" hidden>Reconnect now</button>
     <button id="btn-disconnect" type="button" hidden>Disconnect</button>
     <span class="spacer"></span>
+    <button id="btn-start" class="go" type="button">Start ride</button>
+    <button id="btn-pause" type="button" hidden>Pause</button>
+    <button id="btn-finish" type="button" hidden>Finish</button>
     <button id="btn-video" type="button">Choose video</button>
     <button id="btn-sim" type="button" aria-pressed="false">Simulator</button>
     <button id="btn-fullscreen" type="button">Fullscreen</button>
@@ -315,6 +435,12 @@
         <div id="bar"><div id="bar-zone"></div><div id="bar-fill"></div><div id="bar-marker"></div></div>
         <div id="bar-labels"><span id="bar-target-label">70</span></div>
         <div id="speed-line">Waiting for pedalling</div>
+        <div id="stats" hidden>
+          <div class="stat" id="stat-time"><span class="stat-value" id="stat-time-v">0:00</span><span class="stat-label">Ride time</span></div>
+          <div class="stat" id="stat-target"><span class="stat-value" id="stat-target-v">0:00</span><span class="stat-label" id="stat-target-l">At 70+ RPM</span></div>
+          <div class="stat" id="stat-dist"><span class="stat-value"><span id="stat-dist-v">0.00</span> <span class="stat-unit" id="stat-dist-u">km</span></span><span class="stat-label">Distance</span></div>
+        </div>
+        <div id="stats-hint" hidden></div>
       </div>
     </div>
 
@@ -329,6 +455,12 @@
 <dialog id="settings" aria-label="Settings">
   <div class="grabber"></div>
   <div class="pages" id="settings-pages"></div>
+</dialog>
+
+<dialog id="summary" aria-labelledby="sum-title">
+  <div class="sum-bg"></div>
+  <div class="sum-scroll"><div class="sum-inner" id="sum-body"></div></div>
+  <footer class="sum-actions" id="sum-actions"></footer>
 </dialog>
 
 <!--
@@ -379,7 +511,37 @@ const DEFAULTS = Object.freeze({
   DATA_TIMEOUT_MS: 2000,       // no cadence data for longer than this = treat as stopped
   CONTROLS_HIDE_MS: 5000,      // hide the buttons after this much inactivity during a ride
 
+  // Ride screen (editable)
+  HUD_TIME: true,              // show ride time under the cadence
+  HUD_TARGET_TIME: true,       // show time at or above the target cadence
+  HUD_DISTANCE: true,          // show distance
+  HUD_VIDEO_SPEED: true,       // show "Video speed 0.85x"
+  DISTANCE_UNIT: "km",         // "km" or "mi"
+  AUTO_START: false,           // start recording a ride when pedalling begins
+
+  // Goals (editable) - they fill the rings on the ride summary
+  GOAL_TIME_MIN: 20,
+  GOAL_TARGET_MIN: 10,
+  GOAL_DISTANCE_KM: 5,
+
+  // Ride summary (editable) - which parts to show
+  SUM_RINGS: true,
+  SUM_TIME: true,
+  SUM_TARGET: true,
+  SUM_DISTANCE: true,
+  SUM_AVG_RPM: true,
+  SUM_MAX_RPM: true,
+  SUM_STREAK: true,
+  SUM_COMPARE: true,
+  SUM_AWARDS: true,
+  SUM_CHART: true,
+  SUM_RECENT: true,
+  SUM_NEXT_GOAL: true,
+
   // Fixed (not shown in Settings)
+  KMH_AT_60_RPM: 20,           // = TARGET_KMH_AT_60_RPM in AirBike.ino; only used when the bike's own speed isn't available (simulator)
+  SAMPLE_EVERY_S: 5,           // the ride's cadence chart keeps one average value per this many seconds
+  RIDE_AUTOSAVE_MS: 5000,      // a ride in progress is saved this often, so a reload or crash doesn't lose it
   PAUSE_BELOW_RATE: 0.15,      // while stopping, pause once the eased speed drops below this
   RESUME_START_RATE: 0.15,     // when pedalling starts again, play from this speed and ease up
   BROWSER_MIN_RATE: 0.0625,    // Chrome rejects playbackRate values below this (NotSupportedError)
@@ -418,6 +580,27 @@ const LIMITS = Object.freeze({
   STOP_EASE_SECONDS:    { min: 0.3,  max: 1.5,   step: 0.1 },
   DATA_TIMEOUT_MS:      { min: 1000, max: 5000,  step: 500 },
   CONTROLS_HIDE_MS:     { min: 3000, max: 30000, step: 1000 },
+  HUD_TIME:             { type: "bool" },
+  HUD_TARGET_TIME:      { type: "bool" },
+  HUD_DISTANCE:         { type: "bool" },
+  HUD_VIDEO_SPEED:      { type: "bool" },
+  DISTANCE_UNIT:        { type: "enum", values: ["km", "mi"] },
+  AUTO_START:           { type: "bool" },
+  GOAL_TIME_MIN:        { min: 5,    max: 120,   step: 5 },
+  GOAL_TARGET_MIN:      { min: 1,    max: 60,    step: 1 },
+  GOAL_DISTANCE_KM:     { min: 0.5,  max: 50,    step: 0.5 },
+  SUM_RINGS:            { type: "bool" },
+  SUM_TIME:             { type: "bool" },
+  SUM_TARGET:           { type: "bool" },
+  SUM_DISTANCE:         { type: "bool" },
+  SUM_AVG_RPM:          { type: "bool" },
+  SUM_MAX_RPM:          { type: "bool" },
+  SUM_STREAK:           { type: "bool" },
+  SUM_COMPARE:          { type: "bool" },
+  SUM_AWARDS:           { type: "bool" },
+  SUM_CHART:            { type: "bool" },
+  SUM_RECENT:           { type: "bool" },
+  SUM_NEXT_GOAL:        { type: "bool" },
 });
 const COLOUR_RANGE_MIN_RPM = 5;   // "colour starts" must be at least this far below "full colour"
 
@@ -643,10 +826,208 @@ function lookFor(clarity, glow, cfg, blurScale = 1) {
   };
 }
 
+// ---------------------------------------------------------------------
+// Ride sessions
+// ---------------------------------------------------------------------
+const pad2 = (n) => String(n).padStart(2, "0");
+const M_PER_MILE = 1609.344;
+
+/** Local calendar day "YYYY-MM-DD" (device time zone). */
+function dayKey(ms) { const d = new Date(ms); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+/** Monday 00:00 (local) of the week containing ms. */
+function weekStart(ms) { const d = new Date(ms); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }
+
+/** 75 -> "1:15", 3725 -> "1:02:05" */
+function fmtDuration(s) {
+  s = Math.max(0, Math.floor(s + 1e-6));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return h ? `${h}:${pad2(m)}:${pad2(sec)}` : `${m}:${pad2(sec)}`;
+}
+/** 600 -> "10 min", 3900 -> "1 h 5 min" */
+function fmtMinutes(s) {
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60), r = m % 60;
+  return r ? `${h} h ${r} min` : `${h} h`;
+}
+/** metres -> { value: "3.25", unit: "km" } (2 decimals under 10, then 1) */
+function fmtDistance(m, unit) {
+  const v = unit === "mi" ? m / M_PER_MILE : m / 1000;
+  return { value: v.toFixed(v < 10 ? 2 : 1), unit: unit === "mi" ? "mi" : "km" };
+}
+
+/** Same rule as AirBike.ino: speed = cadence x TARGET_KMH_AT_60_RPM / 60. Only used for the simulator. */
+function speedFromCadence(rpm, cfg) { return rpm > 0 ? (rpm * cfg.KMH_AT_60_RPM) / 60 : 0; }
+
+function newRide(now, cfg) {
+  return {
+    v: 1, id: "ride-" + now.toString(36) + "-" + Math.floor(Math.random() * 1679616).toString(36),
+    startedAt: now, endedAt: now, elapsedS: 0, pedalS: 0, atTargetS: 0, distanceM: 0, avgRpm: 0, maxRpm: 0,
+    longestStreakS: 0, bonusS: 0, targetRpm: cfg.TARGET_RPM, simulator: false,
+    samples: [], sampleEveryS: cfg.SAMPLE_EVERY_S,
+    // working values while riding
+    rpmTime: 0, streakS: 0, bucketS: 0, bucketSum: 0,
+  };
+}
+
+/**
+ * Add dt seconds of riding to a ride in progress (changes and returns r).
+ * input: { rpm, speedKmh, simulator, inZone, zoneStreakS, bonus }
+ */
+function stepRide(r, input, dt, cfg) {
+  const rpm = Math.max(0, input.rpm || 0);
+  r.elapsedS += dt;
+  if (input.simulator) r.simulator = true;
+  if (rpm > 0) { r.pedalS += dt; r.rpmTime += rpm * dt; }
+  if (rpm >= cfg.TARGET_RPM) r.atTargetS += dt;
+  r.distanceM += (Math.max(0, input.speedKmh || 0) / 3.6) * dt;
+  if (rpm > r.maxRpm) r.maxRpm = rpm;
+  // zone streak: starts with the time already held when the zone began (but not before the ride started)
+  r.streakS = input.inZone ? (r.streakS > 0 ? r.streakS + dt : Math.min(input.zoneStreakS || dt, r.elapsedS)) : 0;
+  if (r.streakS > r.longestStreakS) r.longestStreakS = r.streakS;
+  if (input.bonus) r.bonusS += dt;
+  r.targetRpm = cfg.TARGET_RPM;
+  r.bucketS += dt;
+  r.bucketSum += rpm * dt;
+  if (r.bucketS >= r.sampleEveryS - 1e-9) {
+    r.samples.push(Math.round((r.bucketSum / r.bucketS) * 10) / 10);
+    r.bucketS = 0; r.bucketSum = 0;
+  }
+  return r;
+}
+
+/** Turn a ride in progress into the record that gets saved. */
+function finishRide(r, now) {
+  const round = (x, d = 1) => Number(x.toFixed(d));
+  const samples = r.samples.slice();
+  if (r.bucketS >= 1) samples.push(Math.round((r.bucketSum / r.bucketS) * 10) / 10);
+  return {
+    v: 1, id: r.id, startedAt: r.startedAt, endedAt: Math.max(r.startedAt, now),
+    elapsedS: round(r.elapsedS), pedalS: round(r.pedalS), atTargetS: round(r.atTargetS), distanceM: round(r.distanceM),
+    avgRpm: r.pedalS > 0 ? round(r.rpmTime / r.pedalS) : 0, maxRpm: round(r.maxRpm),
+    longestStreakS: round(r.longestStreakS), bonusS: round(r.bonusS), targetRpm: r.targetRpm, simulator: !!r.simulator,
+    samples, sampleEveryS: r.sampleEveryS,
+  };
+}
+
+const RIDE_NUMBERS = ["startedAt", "endedAt", "elapsedS", "pedalS", "atTargetS", "distanceM", "avgRpm", "maxRpm",
+  "longestStreakS", "bonusS", "targetRpm", "sampleEveryS"];
+const ACTIVE_NUMBERS = ["rpmTime", "streakS", "bucketS", "bucketSum"];
+const okNumber = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0;
+
+/** Validate a saved ride; returns a clean copy or null. activeRide = also check the working values. */
+function sanitizeRide(raw, activeRide = false) {
+  if (!raw || typeof raw !== "object" || typeof raw.id !== "string" || !raw.id) return null;
+  const out = { v: 1, id: raw.id.slice(0, 60), simulator: raw.simulator === true };
+  for (const k of RIDE_NUMBERS.concat(activeRide ? ACTIVE_NUMBERS : [])) {
+    if (!okNumber(raw[k])) return null;
+    out[k] = raw[k];
+  }
+  if (out.endedAt < out.startedAt || out.sampleEveryS <= 0) return null;
+  out.samples = Array.isArray(raw.samples) ? raw.samples.filter(okNumber).slice(0, 20000) : [];
+  return out;
+}
+
+/**
+ * Awards for a finished ride, compared with earlier saved rides of the same kind
+ * (real rides with real rides, simulator rides with simulator rides). Most important first.
+ */
+function rideAwards(ride, saved, cfg) {
+  const prev = saved.filter((p) => p.id !== ride.id && p.startedAt < ride.startedAt && p.simulator === ride.simulator);
+  const best = (k, keep = () => true) => prev.filter(keep).reduce((m, p) => Math.max(m, p[k]), 0);
+  const unit = cfg.DISTANCE_UNIT, tr = ride.targetRpm;
+  const dist = (m) => { const d = fmtDistance(m, unit); return `${d.value} ${d.unit}`; };
+  const A = [];
+  const add = (id, title, detail, medal, icon) => A.push({ id, title, detail, medal, icon });
+
+  if (!prev.length) add("first", "First ride", "The first ride saved on this device", "gold", "star");
+  else {
+    if (ride.atTargetS >= 60 && ride.atTargetS > best("atTargetS")) add("pb-target", "Most time at target", `${fmtDuration(ride.atTargetS)} at ${tr}+ RPM`, "aqua", "target");
+    if (ride.longestStreakS >= 30 && ride.longestStreakS > best("longestStreakS")) add("pb-streak", "Longest in the zone", `${fmtDuration(ride.longestStreakS)} in one go`, "gold", "flame");
+    if (ride.distanceM >= 200 && ride.distanceM > best("distanceM")) add("pb-distance", "Furthest ride", dist(ride.distanceM), "orange", "route");
+    if (ride.elapsedS >= 120 && ride.elapsedS > best("elapsedS")) add("pb-time", "Longest ride", fmtDuration(ride.elapsedS), "blue", "timer");
+    if (ride.pedalS >= 120 && ride.avgRpm > best("avgRpm", (p) => p.pedalS >= 120)) add("pb-avg", "Best average cadence", `${Math.round(ride.avgRpm)} RPM`, "aqua", "bolt");
+  }
+  const gTime = ride.elapsedS >= cfg.GOAL_TIME_MIN * 60;
+  const gTarget = ride.atTargetS >= cfg.GOAL_TARGET_MIN * 60;
+  const gDist = ride.distanceM >= cfg.GOAL_DISTANCE_KM * 1000;
+  if (gTime && gTarget && gDist) add("goals-all", "All three goals", "Ride time, time at target and distance", "gold", "rings");
+  else {
+    if (gTarget) add("goal-target", "Target goal", `${fmtMinutes(cfg.GOAL_TARGET_MIN * 60)} at ${tr}+ RPM`, "aqua", "check");
+    if (gTime) add("goal-time", "Ride time goal", fmtMinutes(cfg.GOAL_TIME_MIN * 60), "blue", "check");
+    if (gDist) add("goal-distance", "Distance goal", dist(cfg.GOAL_DISTANCE_KM * 1000), "orange", "check");
+  }
+  if (ride.longestStreakS >= 600) add("zone-10", "10 minutes in the zone", "Without dropping out", "aqua", "flame");
+  else if (ride.longestStreakS >= 300) add("zone-5", "5 minutes in the zone", "Without dropping out", "aqua", "flame");
+  if (ride.bonusS > 0) add("glow", "Golden glow", `Earned for ${fmtDuration(ride.bonusS)}`, "gold", "sun");
+
+  // Rides on consecutive days - only on the first ride of the day.
+  const days = new Set(prev.map((p) => dayKey(p.startedAt)));
+  if (!days.has(dayKey(ride.startedAt))) {
+    let n = 1;
+    const d = new Date(ride.startedAt);
+    for (;;) { d.setDate(d.getDate() - 1); if (days.has(dayKey(d.getTime()))) n++; else break; }
+    if (n >= 2) add("days", `${n} days in a row`, "A ride every day", "blue", "calendar");
+  }
+  const week = prev.filter((p) => p.startedAt >= weekStart(ride.startedAt)).length + 1;
+  if ([3, 5, 7].includes(week)) add("week", `${week} rides this week`, "Keeping it up", "blue", "calendar");
+  const count = prev.length + 1;
+  if ([5, 10, 25, 50, 100, 200, 365, 500, 1000].includes(count)) add("count", `${count} rides`, `${count} rides saved`, "violet", "medal");
+  const per = unit === "mi" ? M_PER_MILE : 1000;
+  const before = prev.reduce((s, p) => s + p.distanceM, 0) / per, after = before + ride.distanceM / per;
+  for (const n of [10, 25, 50, 100, 250, 500, 1000, 2500, 5000]) {
+    if (before < n && after >= n) { add("total-distance", `${n} ${unit === "mi" ? "mi" : "km"} in total`, "Across all your rides", "orange", "route"); break; }
+  }
+  const order = ["first", "goals-all", "pb-target", "pb-streak", "zone-10", "goal-target", "pb-distance", "pb-time", "glow",
+    "days", "zone-5", "week", "count", "total-distance", "pb-avg", "goal-time", "goal-distance"];
+  return A.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+}
+
+const HEADLINES = {
+  "first": "Your first ride!", "goals-all": "All three goals reached!", "pb-target": "Your best time at target!",
+  "pb-streak": "Your longest time in the zone!", "zone-10": "10 minutes in the zone!", "goal-target": "Target goal reached!",
+  "pb-distance": "Your furthest ride yet!", "pb-time": "Your longest ride yet!", "glow": "You earned the golden glow!",
+};
+function rideHeadline(ride, awards) {
+  const top = awards.find((a) => HEADLINES[a.id] || a.id === "days");
+  const title = !top ? "Ride complete" : top.id === "days" ? `${top.title}!` : HEADLINES[top.id];
+  const sub = ride.elapsedS < 60
+    ? "A short one today. Every ride counts."
+    : `${fmtMinutes(ride.elapsedS)} on the bike, with ${fmtMinutes(ride.atTargetS)} at ${ride.targetRpm} RPM or more.`;
+  return { title, sub };
+}
+
+/** A small, reachable aim for next time. */
+function nextGoal(ride, cfg) {
+  const goal = cfg.GOAL_TARGET_MIN * 60, tr = ride.targetRpm;
+  if (ride.atTargetS < goal) {
+    const aim = Math.min(goal, Math.max(60, Math.ceil((ride.atTargetS + 30) / 60) * 60));
+    return { title: `Aim for ${fmtMinutes(aim)} at ${tr}+ RPM`, detail: `Today: ${fmtDuration(ride.atTargetS)}. Goal: ${fmtMinutes(goal)}.` };
+  }
+  const aim = Math.max(60, Math.ceil((ride.longestStreakS + 30) / 60) * 60);
+  return { title: `Stay in the zone for ${fmtMinutes(aim)} in one go`, detail: `Today's longest: ${fmtDuration(ride.longestStreakS)}.` };
+}
+
+const csvCell = (v) => { const s = String(v); return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+function ridesToCSV(rides, unit) {
+  const u = unit === "mi" ? "mi" : "km";
+  const head = ["Date", "Start time", "Ride time (min)", "Time at target (min)", "Target (RPM)", `Distance (${u})`,
+    "Average cadence (RPM)", "Top cadence (RPM)", "Longest in zone (min)", "Golden glow (min)", "Simulator"];
+  const rows = rides.slice().sort((a, b) => a.startedAt - b.startedAt).map((r) => {
+    const d = new Date(r.startedAt);
+    return [dayKey(r.startedAt), `${pad2(d.getHours())}:${pad2(d.getMinutes())}`, (r.elapsedS / 60).toFixed(2),
+      (r.atTargetS / 60).toFixed(2), r.targetRpm, (r.distanceM / (u === "mi" ? M_PER_MILE : 1000)).toFixed(3),
+      r.avgRpm.toFixed(1), r.maxRpm.toFixed(1), (r.longestStreakS / 60).toFixed(2), (r.bonusS / 60).toFixed(2), r.simulator ? "yes" : "no"];
+  });
+  return [head, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n") + "\r\n";
+}
+
 globalThis.AirBikeCore = {
   DEFAULTS, CONFIG, LIMITS, FTMS, sanitizeSettings, editableValues,
   parseIndoorBikeData, effectiveCadence, targetRateForCadence, stepPlayback,
   stepZone, NEW_ZONE, bonusActive, clarityTarget, easeToward, lookFor,
+  dayKey, weekStart, fmtDuration, fmtMinutes, fmtDistance, speedFromCadence,
+  newRide, stepRide, finishRide, sanitizeRide, rideAwards, rideHeadline, nextGoal, ridesToCSV,
 };
 </script>
 
@@ -662,6 +1043,8 @@ globalThis.AirBikeCore = {
     DEFAULTS, LIMITS, FTMS, sanitizeSettings, editableValues,
     parseIndoorBikeData, effectiveCadence, targetRateForCadence, stepPlayback,
     stepZone, NEW_ZONE, bonusActive, clarityTarget, easeToward, lookFor,
+    dayKey, fmtDuration, fmtMinutes, fmtDistance, speedFromCadence,
+    newRide, stepRide, finishRide, sanitizeRide, rideAwards, rideHeadline, nextGoal, ridesToCSV,
   } = globalThis.AirBikeCore;
   const $ = (id) => document.getElementById(id);
 
@@ -756,6 +1139,8 @@ globalThis.AirBikeCore = {
       $("bar-marker").style.left = zoneStart + "%";
       $("bar-target-label").style.left = zoneStart + "%";
       $("bar-target-label").textContent = String(cfg.TARGET_RPM);
+      $("stat-target-l").textContent = `At ${cfg.TARGET_RPM}+ RPM`;
+      $("speed-line").hidden = !cfg.HUD_VIDEO_SPEED;
       $("video").style.objectFit = cfg.VIDEO_FIT;
       $("sim-slider").max = String(cfg.SIM_MAX_RPM);
     },
@@ -896,6 +1281,8 @@ globalThis.AirBikeCore = {
       if (typeof result.instantaneousCadenceRpm === "number") {
         Bike.lastCadence = result.instantaneousCadenceRpm;
         Bike.lastCadenceAt = performance.now();
+        // Speed comes in the same packet (AirBike.ino: cadence x 20 / 60 km/h). Used for distance.
+        Bike.lastSpeed = typeof result.instantaneousSpeedKmh === "number" ? result.instantaneousSpeedKmh : null;
       }
     },
 
@@ -1095,7 +1482,533 @@ globalThis.AirBikeCore = {
   };
 
   // (Step 3) Audio module will go here, fed from the same tick.
-  // (Step 4) Session history will read the same zone/streak state.
+
+  // -------------------------------------------------------------------
+  // Saved rides (localStorage on this device). Each ride is about 3 KB.
+  // -------------------------------------------------------------------
+  const RideStore = {
+    KEY: "airbike.rides.v1",
+    ACTIVE_KEY: "airbike.activeRide.v1",
+    list: [],
+    available: true,
+    persistAsked: false,
+
+    load() {
+      try {
+        const raw = window.localStorage.getItem(this.KEY);
+        const arr = raw ? JSON.parse(raw) : [];
+        this.list = (Array.isArray(arr) ? arr : []).map((r) => sanitizeRide(r)).filter(Boolean).sort((a, b) => a.startedAt - b.startedAt);
+        this.available = true;
+      } catch (err) {
+        console.warn("Saved rides could not be loaded:", err.name);
+        this.list = [];
+        this.available = err instanceof SyntaxError;
+      }
+    },
+    write() {
+      try {
+        window.localStorage.setItem(this.KEY, JSON.stringify(this.list));
+        this.available = true;
+        return true;
+      } catch (err) {
+        console.warn("Rides could not be saved:", err.name);
+        this.available = false;
+        return false;
+      }
+    },
+    add(ride) {
+      if (this.list.some((r) => r.id === ride.id)) return true;
+      this.list.push(ride);
+      this.list.sort((a, b) => a.startedAt - b.startedAt);
+      if (!this.write()) { this.list = this.list.filter((r) => r.id !== ride.id); return false; }
+      this.askToPersist();
+      return true;
+    },
+    remove(id) { this.list = this.list.filter((r) => r.id !== id); this.write(); },
+    clear() { this.list = []; this.write(); },
+    // Ask the browser not to clear this site's data under storage pressure (Chrome decides automatically).
+    askToPersist() {
+      if (this.persistAsked || !navigator.storage || !navigator.storage.persist) return;
+      this.persistAsked = true;
+      navigator.storage.persist().then((ok) => console.info("Persistent storage:", ok)).catch(() => {});
+    },
+    // The ride in progress (or a finished one waiting for Save / Don't save), so a reload doesn't lose it.
+    saveActive(value) {
+      try {
+        if (value) window.localStorage.setItem(this.ACTIVE_KEY, JSON.stringify(value));
+        else window.localStorage.removeItem(this.ACTIVE_KEY);
+      } catch (_) { /* storage blocked: nothing to keep */ }
+    },
+    loadActive() {
+      try {
+        const v = JSON.parse(window.localStorage.getItem(this.ACTIVE_KEY) || "null");
+        if (v && v.pending) { const p = sanitizeRide(v.pending); return p ? { pending: p } : null; }
+        if (v && v.ride) { const r = sanitizeRide(v.ride, true); return r ? { ride: { ...v.ride, ...r } } : null; }
+      } catch (_) { /* ignore */ }
+      return null;
+    },
+  };
+
+  // -------------------------------------------------------------------
+  // Ride session: Start -> (Pause/Resume) -> Finish -> summary -> Save / Don't save
+  // -------------------------------------------------------------------
+  const Session = {
+    ride: null,
+    state: "none",          // none | active | paused
+    lastPersist: 0,
+    shown: {},
+
+    start() {
+      if (this.state !== "none") return;
+      this.ride = newRide(Date.now(), cfg);
+      this.state = "active";
+      UI.clearMessage("ride");
+      this.persist();
+      this.render();
+      Controls.show();
+    },
+    togglePause() {
+      if (this.state === "active") { this.state = "paused"; this.persist(); }
+      else if (this.state === "paused") { this.state = "active"; UI.clearMessage("ride"); }
+      this.render();
+    },
+    finish() {
+      if (!this.ride) return;
+      const record = finishRide(this.ride, Date.now());
+      this.ride = null;
+      this.state = "none";
+      RideStore.saveActive({ pending: record });
+      UI.clearMessage("ride");
+      this.render();
+      Summary.open(record, "new");
+    },
+    update(input, dt) {
+      if (this.state === "none" && cfg.AUTO_START && input.rpm > 0 && !Summary.isOpen) this.start();
+      if (this.state === "active") {
+        stepRide(this.ride, input, dt, cfg);
+        if (performance.now() - this.lastPersist > cfg.RIDE_AUTOSAVE_MS) this.persist();
+      }
+      this.render();
+    },
+    persist() {
+      if (!this.ride) return;
+      this.ride.endedAt = Date.now();
+      RideStore.saveActive({ ride: this.ride });
+      this.lastPersist = performance.now();
+    },
+    restore() {
+      const a = RideStore.loadActive();
+      if (!a) return;
+      if (a.pending) { Summary.open(a.pending, "new"); return; }
+      this.ride = a.ride;
+      this.state = "paused";
+      const t = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(a.ride.startedAt);
+      UI.showMessage("ride", `Your ride from ${t} was kept. Press Resume to carry on, or Finish to see how it went.`, "info");
+      this.render();
+    },
+    set(id, prop, value) {
+      const key = id + "." + prop;
+      if (this.shown[key] === value) return;
+      this.shown[key] = value;
+      if (prop === "text") $(id).textContent = value; else $(id)[prop] = value;
+    },
+    render() {
+      const s = this.state, r = this.ride;
+      this.set("btn-start", "hidden", s !== "none");
+      this.set("btn-pause", "hidden", s === "none");
+      this.set("btn-finish", "hidden", s === "none");
+      this.set("btn-pause", "text", s === "paused" ? "Resume" : "Pause");
+      $("btn-pause").classList.toggle("go", s === "paused");
+      const any = cfg.HUD_TIME || cfg.HUD_TARGET_TIME || cfg.HUD_DISTANCE;
+      this.set("stats", "hidden", !(any && r));
+      this.set("stat-time", "hidden", !cfg.HUD_TIME);
+      this.set("stat-target", "hidden", !cfg.HUD_TARGET_TIME);
+      this.set("stat-dist", "hidden", !cfg.HUD_DISTANCE);
+      $("stats").classList.toggle("paused", s === "paused");
+      const hint = s === "none" ? (any ? "Press Start ride to record time and distance" : "")
+        : s === "paused" ? "Paused. Press Resume to carry on." : "";
+      this.set("stats-hint", "text", hint);
+      this.set("stats-hint", "hidden", !hint);
+      $("stats-hint").classList.toggle("paused", s === "paused");
+      if (r) {
+        this.set("stat-time-v", "text", fmtDuration(r.elapsedS));
+        this.set("stat-target-v", "text", fmtDuration(r.atTargetS));
+        const d = fmtDistance(r.distanceM, cfg.DISTANCE_UNIT);
+        this.set("stat-dist-v", "text", d.value);
+        this.set("stat-dist-u", "text", d.unit);
+      }
+    },
+  };
+
+  // -------------------------------------------------------------------
+  // Ride summary: goal rings, numbers vs last ride, awards, cadence chart,
+  // recent rides, next goal. What's shown is chosen in Settings > Ride summary.
+  // -------------------------------------------------------------------
+  // Ring colours checked with the data-viz palette validator on this dark background
+  // (lightness, chroma, colour-blind separation, contrast: all pass).
+  const RING = { time: "#3987e5", target: "#199e70", distance: "#d95926" };
+  const GLYPHS = {
+    star: '<path d="M12 3.2l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.6l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8z" fill="currentColor"/>',
+    target: '<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/>',
+    flame: '<path d="M12 2.8c.6 3-1.8 4.6-1.8 7 0 1.1.7 2 1.8 2 1.4 0 2-1.3 1.6-3 2.5 1.6 4 4 4 6.5A5.6 5.6 0 0 1 12 21a5.6 5.6 0 0 1-5.6-5.7c0-4.4 4.7-6.6 5.6-12.5z" fill="currentColor"/>',
+    route: '<path d="M6 20c0-5 12-4 12-9s-6-4-6-7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="6" cy="20" r="2" fill="currentColor"/><circle cx="12" cy="4" r="2" fill="currentColor"/>',
+    timer: '<circle cx="12" cy="13.5" r="7.4" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 13.5V9.6M9.6 2.9h4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+    bolt: '<path d="M13.5 2.5L5.5 13.5h5.5l-1 8 8-11h-5.5z" fill="currentColor"/>',
+    rings: '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="5.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="1.9" fill="none" stroke="currentColor" stroke-width="2"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>',
+    sun: '<circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2.6v2.1M12 19.3v2.1M2.6 12h2.1M19.3 12h2.1M5.4 5.4l1.5 1.5M17.1 17.1l1.5 1.5M5.4 18.6l1.5-1.5M17.1 6.9l1.5-1.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+    calendar: '<rect x="4" y="5.5" width="16" height="14.5" rx="3" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+    medal: '<circle cx="12" cy="14" r="6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M8.5 3.5l3.5 5 3.5-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>',
+  };
+  const svgNS = "http://www.w3.org/2000/svg";
+  const fmtDate = (ms, opts) => new Intl.DateTimeFormat(undefined, opts).format(ms);
+
+  const Summary = {
+    el: null,
+    isOpen: false,
+    ride: null,
+    mode: null,          // "new" (just finished) | "view" (from history)
+    decided: false,
+    confirmTimer: null,
+
+    init() {
+      this.el = $("summary");
+      this.el.addEventListener("cancel", (e) => {
+        e.preventDefault();
+        if (this.mode !== "new" || this.decided) this.close();   // a new ride needs Save or Don't save
+      });
+      // If the browser closes it anyway (e.g. Esc pressed repeatedly), never lose the ride: save it.
+      this.el.addEventListener("close", () => {
+        if (!this.isOpen) return;
+        this.isOpen = false;
+        this.el.classList.remove("open", "revealed");
+        if (this.mode === "new" && !this.decided) { if (this.save(true)) UI.showMessage("saved", "Your ride was saved.", "info"); }
+      });
+      if ("ResizeObserver" in window) new ResizeObserver(() => { if (this.isOpen) this.drawCharts(); }).observe(this.el);
+    },
+
+    open(ride, mode) {
+      this.ride = ride;
+      this.mode = mode;
+      this.decided = false;
+      this.isOpen = true;
+      this.render();
+      if (!this.el.open) this.el.showModal();
+      this.el.querySelector(".sum-scroll").scrollTop = 0;
+      this.drawCharts();
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        this.el.classList.add("open");
+        this.el.querySelectorAll(".ring-progress").forEach((c) => { c.style.strokeDashoffset = c.dataset.offset; });
+        setTimeout(() => this.el.classList.add("revealed"), 700);
+      }));
+      Controls.show();
+    },
+
+    close() {
+      if (!this.isOpen) return;
+      this.isOpen = false;
+      this.el.classList.remove("open", "revealed");
+      setTimeout(() => { if (this.el.open && !this.isOpen) this.el.close(); }, 450);
+      Controls.show();
+      if (SettingsSheet.isOpen) SettingsSheet.refresh();
+    },
+
+    save(silent) {
+      if (!RideStore.add(this.ride)) {
+        if (!silent) this.renderActions("Couldn't save: this browser isn't letting the app store data.");
+        return false;
+      }
+      this.decided = true;
+      RideStore.saveActive(null);
+      if (!silent) this.renderActions();
+      return true;
+    },
+
+    // ---------- building the page ----------
+    render() {
+      const r = this.ride, c = cfg;
+      const others = RideStore.list.filter((p) => p.id !== r.id);
+      const earlier = others.filter((p) => p.simulator === r.simulator && p.startedAt < r.startedAt);
+      const last = earlier[earlier.length - 1] || null;
+      const awards = rideAwards(r, others, c);
+      const head = rideHeadline(r, awards);
+      const body = $("sum-body");
+      body.textContent = "";
+
+      const date = h("p", { class: "sum-date", text: fmtDate(r.startedAt, { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }) });
+      if (r.simulator) date.append(h("span", { class: "tag", text: "Simulator ride" }));
+      body.append(date, h("h1", { class: "sum-title", id: "sum-title", text: head.title }), h("p", { class: "sum-sub", text: head.sub }));
+
+      const grid = h("div", { class: "sum-grid" });
+      body.append(grid);
+      if (c.SUM_RINGS) grid.append(this.ringsCard(r));
+      const tiles = this.tiles(r, earlier, last);
+      if (tiles) grid.append(tiles);
+      if (c.SUM_AWARDS && awards.length) grid.append(this.awardsCard(awards));
+      if (c.SUM_CHART) grid.append(h("section", { class: "card chart-card", "data-section": "chart" }, [
+        h("h2", { class: "card-title", text: "Cadence" }),
+        h("p", { class: "card-sub", text: `Average ${Math.round(r.avgRpm)} RPM while pedalling. The shaded band is ${r.targetRpm} RPM and above.` }),
+        h("div", { class: "chart", id: "chart-cadence" }),
+      ]));
+      const recent = earlier.concat(r).slice(-10);
+      if (c.SUM_RECENT) grid.append(h("section", { class: "card recent-card", "data-section": "recent" }, [
+        h("h2", { class: "card-title", text: "Time at target" }),
+        h("p", { class: "card-sub", text: recent.length > 1 ? `Your last ${recent.length} rides, minutes at ${r.targetRpm}+ RPM` : "This ride. Your next rides will appear here." }),
+        h("div", { class: "chart", id: "chart-recent" }),
+      ]));
+      if (c.SUM_NEXT_GOAL) {
+        const g = nextGoal(r, c);
+        const card = h("section", { class: "card next-card", "data-section": "next" }, [
+          h("div", { class: "next-icon", html: `<svg viewBox="0 0 24 24" aria-hidden="true">${GLYPHS.target}</svg>` }),
+          h("p", { class: "card-sub", text: "Next time" }),
+          h("div", { class: "next-title", text: g.title }),
+          h("div", { class: "next-detail", text: g.detail }),
+        ]);
+        if (!c.SUM_RECENT) card.style.gridColumn = "span 12";
+        grid.append(card);
+      }
+      const all = others.filter((p) => p.simulator === r.simulator).concat(r);
+      const total = all.reduce((s, p) => s + p.distanceM, 0);
+      const td = fmtDistance(total, c.DISTANCE_UNIT);
+      grid.append(h("p", { class: "sum-lifetime", text: `${all.length} ${all.length === 1 ? "ride" : "rides"} and ${td.value} ${td.unit} so far${r.simulator ? " in the simulator" : ""}.` }));
+
+      this.recentData = recent;
+      this.renderActions();
+    },
+
+    ringsCard(r) {
+      const c = cfg, unit = c.DISTANCE_UNIT;
+      const goalDist = fmtDistance(c.GOAL_DISTANCE_KM * 1000, unit);
+      const d = fmtDistance(r.distanceM, unit);
+      const items = [
+        { key: "time", label: "Ride time", value: fmtDuration(r.elapsedS), goal: `/ ${fmtMinutes(c.GOAL_TIME_MIN * 60)}`, p: r.elapsedS / (c.GOAL_TIME_MIN * 60) },
+        { key: "target", label: `At ${r.targetRpm}+ RPM`, value: fmtDuration(r.atTargetS), goal: `/ ${fmtMinutes(c.GOAL_TARGET_MIN * 60)}`, p: r.atTargetS / (c.GOAL_TARGET_MIN * 60) },
+        { key: "distance", label: "Distance", value: `${d.value}`, goal: `/ ${goalDist.value.replace(/\.?0+$/, "")} ${d.unit}`, p: r.distanceM / (c.GOAL_DISTANCE_KM * 1000) },
+      ];
+      // concentric rings: outer = ride time, middle = time at target, inner = distance
+      const size = 240, mid = size / 2, sw = 22, gap = 5;
+      const svg = document.createElementNS(svgNS, "svg");
+      svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
+      svg.setAttribute("class", "rings");
+      svg.setAttribute("role", "img");
+      svg.setAttribute("aria-label", items.map((i) => `${i.label} ${Math.round(i.p * 100)}% of goal`).join(", "));
+      items.forEach((it, i) => {
+        const rad = mid - sw / 2 - 2 - i * (sw + gap);
+        const C = 2 * Math.PI * rad;
+        const p = Math.min(1, Math.max(0, it.p));
+        const track = document.createElementNS(svgNS, "circle");
+        Object.entries({ cx: mid, cy: mid, r: rad, fill: "none", stroke: RING[it.key], "stroke-opacity": 0.2, "stroke-width": sw }).forEach(([k, v]) => track.setAttribute(k, v));
+        svg.append(track);
+        if (p > 0.004) {
+          const arc = document.createElementNS(svgNS, "circle");
+          Object.entries({ cx: mid, cy: mid, r: rad, fill: "none", stroke: RING[it.key], "stroke-width": sw, "stroke-linecap": "round",
+            "stroke-dasharray": C.toFixed(2), transform: `rotate(-90 ${mid} ${mid})`, class: "ring-progress" }).forEach(([k, v]) => arc.setAttribute(k, v));
+          arc.style.strokeDashoffset = C.toFixed(2);
+          arc.dataset.offset = (C * (1 - p)).toFixed(2);
+          arc.style.transitionDelay = `${150 + i * 180}ms`;
+          svg.append(arc);
+        }
+      });
+      const keys = h("div", { class: "ring-keys" }, items.map((it) => {
+        const pct = Math.round(it.p * 100);
+        return h("div", { class: "ring-key", "data-ring": it.key }, [
+          h("span", { class: "key-dot", style: `background:${RING[it.key]}` }),
+          h("div", {}, [
+            h("div", { class: "key-label" }, [it.label, h("span", { class: "key-pct" + (pct >= 100 ? " done" : ""), text: pct >= 100 ? "Goal reached" : `${pct}% of goal` })]),
+            h("div", { class: "key-value" }, [it.value + " ", h("span", { class: "key-goal", text: it.goal })])]),
+        ]);
+      }));
+      const card = h("section", { class: "card hero", "data-section": "rings" }, [keys]);
+      card.prepend(svg);
+      return card;
+    },
+
+    tiles(r, earlier, last) {
+      const c = cfg, unit = c.DISTANCE_UNIT;
+      const defs = [
+        { key: "SUM_TIME", label: "Ride time", field: "elapsedS", val: (x) => [fmtDuration(x), ""], delta: (d) => fmtDuration(d) },
+        { key: "SUM_TARGET", label: `At ${r.targetRpm}+ RPM`, field: "atTargetS", val: (x) => [fmtDuration(x), ""], delta: (d) => fmtDuration(d) },
+        { key: "SUM_DISTANCE", label: "Distance", field: "distanceM", val: (x) => { const d = fmtDistance(x, unit); return [d.value, d.unit]; }, delta: (d) => { const x = fmtDistance(d, unit); return `${x.value} ${x.unit}`; } },
+        { key: "SUM_AVG_RPM", label: "Average cadence", field: "avgRpm", val: (x) => [String(Math.round(x)), "RPM"], delta: (d) => `${Math.round(d)} RPM` },
+        { key: "SUM_MAX_RPM", label: "Top cadence", field: "maxRpm", val: (x) => [String(Math.round(x)), "RPM"], delta: (d) => `${Math.round(d)} RPM` },
+        { key: "SUM_STREAK", label: "Longest in the zone", field: "longestStreakS", val: (x) => [fmtDuration(x), ""], delta: (d) => fmtDuration(d) },
+      ].filter((d) => c[d.key]);
+      if (!defs.length) return null;
+      const grid = h("div", { class: "tiles", "data-section": "tiles" });
+      grid.style.setProperty("--cols", defs.length <= 4 ? defs.length : 3);
+      grid.append(...defs.map((d) => {
+        const v = r[d.field];
+        const [value, u] = d.val(v);
+        const label = h("div", { class: "t-label", text: d.label });
+        // "Best yet" only when the improvement is big enough to see in the numbers shown
+        const prevBest = earlier.length ? Math.max(...earlier.map((p) => p[d.field])) : Infinity;
+        if (c.SUM_COMPARE && v > prevBest && d.delta(v - prevBest) !== d.delta(0)) label.append(h("span", { class: "best", text: "Best yet" }));
+        const tile = h("div", { class: "stat-tile", "data-tile": d.field }, [label, h("div", { class: "t-value" }, [value, u ? " " : "", u ? h("span", { class: "t-unit", text: u }) : null])]);
+        if (c.SUM_COMPARE && last) {
+          const diff = v - last[d.field];
+          const shown = d.delta(Math.abs(diff));
+          const same = shown === d.delta(0);
+          tile.append(h("div", { class: "t-delta" + (diff > 0 && !same ? " up" : ""), text: same ? "Same as last ride" : diff > 0 ? `▲ ${shown} more than last ride` : `${shown} less than last ride` }));
+        }
+        return tile;
+      }));
+      return grid;
+    },
+
+    awardsCard(awards) {
+      return h("section", { class: "card", "data-section": "awards" }, [
+        h("h2", { class: "card-title", text: awards.length === 1 ? "1 award" : `${awards.length} awards` }),
+        h("div", { class: "medals" }, awards.map((a, i) => {
+          const m = h("div", { class: "medal", "data-award": a.id }, [
+            h("div", { class: `medal-disc medal-${a.medal}`, html: `<svg viewBox="0 0 24 24" aria-hidden="true">${GLYPHS[a.icon] || GLYPHS.star}</svg>` }),
+            h("div", { class: "medal-title", text: a.title }),
+            h("div", { class: "medal-detail", text: a.detail }),
+          ]);
+          m.style.transitionDelay = `${i * 110}ms`;
+          return m;
+        })),
+      ]);
+    },
+
+    // ---------- charts (drawn at the card's real width) ----------
+    drawCharts() {
+      const cad = $("chart-cadence"), rec = $("chart-recent");
+      if (cad) this.cadenceChart(cad, this.ride);
+      if (rec) this.recentChart(rec, this.recentData || [this.ride]);
+    },
+
+    tip(box, html, x, y) {
+      let t = box.querySelector(".viz-tip");
+      if (!t) { t = h("div", { class: "viz-tip", role: "status" }); box.append(t); }
+      if (html == null) { t.classList.remove("show"); return; }
+      t.innerHTML = html;
+      t.style.left = Math.min(Math.max(x, 60), box.clientWidth - 60) + "px";
+      t.style.top = y + "px";
+      t.classList.add("show");
+    },
+
+    cadenceChart(box, r) {
+      box.textContent = "";
+      const s = r.samples;
+      if (s.length < 2) { box.append(h("div", { class: "empty-note", text: "The ride was too short for a chart." })); return; }
+      const W = Math.max(280, box.clientWidth), H = 220, L = 36, R = 12, T = 12, B = 28;
+      const every = r.sampleEveryS, span = s.length * every;
+      const yMax = Math.ceil(Math.max(r.targetRpm + 20, Math.max(...s) + 5) / 20) * 20;
+      const x = (t) => L + (t / span) * (W - L - R), y = (v) => T + (1 - v / yMax) * (H - T - B);
+      const pts = s.map((v, i) => [x((i + 0.5) * every), y(v)]);
+      let line = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+      for (let i = 1; i < pts.length; i++) {        // smooth Catmull-Rom curve, kept inside the chart
+        const p0 = pts[i - 2] || pts[i - 1], p1 = pts[i - 1], p2 = pts[i], p3 = pts[i + 1] || p2;
+        const cl = (v) => Math.min(y(0), Math.max(T, v));
+        line += ` C${(p1[0] + (p2[0] - p0[0]) / 6).toFixed(1)},${cl(p1[1] + (p2[1] - p0[1]) / 6).toFixed(1)} ${(p2[0] - (p3[0] - p1[0]) / 6).toFixed(1)},${cl(p2[1] - (p3[1] - p1[1]) / 6).toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+      }
+      const area = `${line} L${pts[pts.length - 1][0].toFixed(1)},${y(0)} L${pts[0][0].toFixed(1)},${y(0)} Z`;
+      const yTicks = [];
+      for (let v = 0; v <= yMax; v += yMax > 100 ? 40 : 20) yTicks.push(v);
+      const mins = span / 60, stepMin = [1, 2, 5, 10, 15, 20, 30, 60].find((m) => mins / m <= 6) || 120;
+      const xTicks = [];
+      for (let m = 0; m <= mins + 1e-9; m += stepMin) xTicks.push(m);
+      const ty = y(r.targetRpm);
+      box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="Cadence during the ride, average ${Math.round(r.avgRpm)} RPM, top ${Math.round(r.maxRpm)} RPM">
+        <rect x="${L}" y="${T}" width="${W - L - R}" height="${(ty - T).toFixed(1)}" fill="${RING.target}" fill-opacity="0.12"/>
+        ${yTicks.map((v) => `<line x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="rgba(255,255,255,${v === 0 ? 0.22 : 0.08})" stroke-width="1"/><text x="${L - 8}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${v}</text>`).join("")}
+        <line x1="${L}" x2="${W - R}" y1="${ty.toFixed(1)}" y2="${ty.toFixed(1)}" stroke="${RING.target}" stroke-width="1.5"/>
+        <text x="${W - R - 4}" y="${(ty + 16).toFixed(1)}" text-anchor="end">Target ${r.targetRpm} RPM</text>
+        ${xTicks.map((m) => `<text x="${x(m * 60).toFixed(1)}" y="${H - 8}" text-anchor="middle">${m} min</text>`).join("")}
+        <path d="${area}" fill="${RING.time}" fill-opacity="0.12"/>
+        <path d="${line}" fill="none" stroke="${RING.time}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        <g class="hover" opacity="0"><line y1="${T}" y2="${y(0)}" stroke="rgba(255,255,255,0.35)" stroke-width="1"/><circle r="5" fill="${RING.time}" stroke="#1c1c1e" stroke-width="2"/></g>
+        <rect class="hit" x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent"/>
+      </svg>`;
+      const hover = box.querySelector(".hover"), hit = box.querySelector(".hit");
+      const move = (e) => {
+        const bx = box.getBoundingClientRect();
+        const px = ((e.clientX - bx.left) / bx.width) * W;
+        const i = Math.min(s.length - 1, Math.max(0, Math.floor(((px - L) / (W - L - R)) * s.length)));
+        const [cx, cy] = pts[i];
+        hover.setAttribute("opacity", "1");
+        hover.querySelector("line").setAttribute("x1", cx); hover.querySelector("line").setAttribute("x2", cx);
+        hover.querySelector("circle").setAttribute("cx", cx); hover.querySelector("circle").setAttribute("cy", cy);
+        this.tip(box, `<b>${Math.round(s[i])} RPM</b> at ${fmtDuration(i * every)}`, (cx / W) * bx.width, (cy / H) * bx.height);
+      };
+      hit.addEventListener("pointermove", move);
+      hit.addEventListener("pointerdown", move);
+      hit.addEventListener("pointerleave", () => { hover.setAttribute("opacity", "0"); this.tip(box, null); });
+    },
+
+    recentChart(box, rides) {
+      box.textContent = "";
+      const r = this.ride, goal = cfg.GOAL_TARGET_MIN;
+      const W = Math.max(260, box.clientWidth), H = 200, L = 8, R = 8, T = 22, B = 28;
+      const vals = rides.map((p) => p.atTargetS / 60);
+      const yMax = Math.max(goal, ...vals) * 1.15 || 1;
+      const slot = (W - L - R) / rides.length, bw = Math.min(24, slot * 0.6);
+      const y = (v) => T + (1 - v / yMax) * (H - T - B);
+      const bars = rides.map((p, i) => {
+        const v = vals[i], cx = L + slot * (i + 0.5), top = y(v), base = y(0), hgt = Math.max(0, base - top);
+        const rr = Math.min(4, hgt, bw / 2);
+        const path = hgt < 0.5 ? "" : `M${cx - bw / 2},${base} V${top + rr} Q${cx - bw / 2},${top} ${cx - bw / 2 + rr},${top} H${cx + bw / 2 - rr} Q${cx + bw / 2},${top} ${cx + bw / 2},${top + rr} V${base} Z`;
+        const current = p.id === r.id;
+        const showDate = current || i === 0 || rides.length <= 7;
+        return `<g data-i="${i}"><path d="${path}" fill="${current ? RING.target : "rgba(255,255,255,0.26)"}"/>
+          ${current ? `<text x="${cx}" y="${(top - 6).toFixed(1)}" text-anchor="middle" style="fill:#fff;font-weight:600">${fmtDuration(p.atTargetS)}</text>` : ""}
+          ${showDate ? `<text x="${cx}" y="${H - 8}" text-anchor="middle">${current ? "Today" : fmtDate(p.startedAt, { day: "numeric", month: "short" })}</text>` : ""}
+          <rect class="hit" x="${(cx - slot / 2).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${H - T - B}" fill="transparent"/></g>`;
+      }).join("");
+      const gy = y(goal);
+      box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="Minutes at target for recent rides">
+        <line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="rgba(255,255,255,0.22)" stroke-width="1"/>
+        <line x1="${L}" x2="${W - R}" y1="${gy.toFixed(1)}" y2="${gy.toFixed(1)}" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+        <text x="${L}" y="${(gy - 6).toFixed(1)}">Goal ${goal} min</text>${bars}</svg>`;
+      box.querySelectorAll("g[data-i]").forEach((g) => {
+        const i = Number(g.dataset.i), p = rides[i];
+        const show = () => {
+          const bx = box.getBoundingClientRect();
+          const cx = (L + slot * (i + 0.5)) / W * bx.width, cy = y(vals[i]) / H * bx.height;
+          this.tip(box, `<b>${fmtDuration(p.atTargetS)}</b> at ${p.targetRpm}+ RPM, ${fmtDate(p.startedAt, { day: "numeric", month: "short" })}`, cx, cy);
+        };
+        g.addEventListener("pointerenter", show);
+        g.addEventListener("pointerdown", show);
+        g.addEventListener("pointerleave", () => this.tip(box, null));
+      });
+    },
+
+    renderActions(error) {
+      const bar = $("sum-actions");
+      bar.textContent = "";
+      const btn = (text, cls, fn, attrs = {}) => { const b = h("button", { type: "button", class: "sum-btn " + cls, text, ...attrs }); b.addEventListener("click", fn); return b; };
+      if (error) bar.append(h("span", { class: "sum-saved", style: "color:var(--red)", text: error }));
+      if (this.mode === "new" && !this.decided) {
+        const discard = btn("Don't save", "destructive", () => {
+          if (discard.dataset.armed) { clearTimeout(this.confirmTimer); this.decided = true; RideStore.saveActive(null); this.close(); return; }
+          discard.dataset.armed = "1"; discard.textContent = "Tap again to discard";
+          this.confirmTimer = setTimeout(() => { delete discard.dataset.armed; discard.textContent = "Don't save"; }, 4000);
+        }, { "data-action": "discard" });
+        bar.append(discard, btn("Save ride", "primary", () => this.save(false), { "data-action": "save" }));
+      } else if (this.mode === "new") {
+        bar.append(h("span", { class: "sum-saved", text: "✓ Saved" }), btn("Done", "primary", () => this.close(), { "data-action": "done" }));
+      } else {
+        const del = btn("Delete ride", "destructive", () => {
+          if (del.dataset.armed) { clearTimeout(this.confirmTimer); RideStore.remove(this.ride.id); this.close(); return; }
+          del.dataset.armed = "1"; del.textContent = "Tap again to delete";
+          this.confirmTimer = setTimeout(() => { delete del.dataset.armed; del.textContent = "Delete ride"; }, 4000);
+        }, { "data-action": "delete" });
+        bar.append(del, btn("Close", "primary", () => this.close(), { "data-action": "close" }));
+      }
+      const primary = bar.querySelector(".primary");
+      if (primary && this.isOpen) primary.focus({ preventScroll: true });
+    },
+  };
+
+  function exportRides() {
+    const csv = ridesToCSV(RideStore.list, cfg.DISTANCE_UNIT);
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));   // BOM so Excel reads UTF-8
+    const a = h("a", { href: url, download: `airbike-rides-${dayKey(Date.now())}.csv` });
+    (SettingsSheet.isOpen ? SettingsSheet.el : document.body).append(a);   // inside the open dialog (the page behind is inert)
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
 
   // -------------------------------------------------------------------
   // Screen Wake Lock (with graceful fallback)
@@ -1172,7 +2085,7 @@ globalThis.AirBikeCore = {
       clearTimeout(this.timer);
       this.timer = setTimeout(() => {
         const riding = VideoController.hasVideo && (Bike.state === "connected" || Sim.on);
-        if (riding && !SettingsSheet.isOpen) $("app").classList.add("controls-hidden");
+        if (riding && !SettingsSheet.isOpen && !Summary.isOpen) $("app").classList.add("controls-hidden");
       }, cfg.CONTROLS_HIDE_MS);
     },
   };
@@ -1188,6 +2101,10 @@ globalThis.AirBikeCore = {
     sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2.6v2.1M12 19.3v2.1M2.6 12h2.1M19.3 12h2.1M5.4 5.4l1.5 1.5M17.1 17.1l1.5 1.5M5.4 18.6l1.5-1.5M17.1 6.9l1.5-1.5"/></svg>',
     timer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="13.5" r="7.4"/><path d="M12 13.5V9.6M9.6 2.9h4.8"/></svg>',
     more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="6" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="18" cy="12" r="2"/></svg>',
+    display: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="12" rx="2.5"/><path d="M9 20h6M12 16.5V20"/></svg>',
+    flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 21V4"/><path d="M5.5 4.5h11l-2.5 4 2.5 4h-11" fill="currentColor"/></svg>',
+    chart: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="12" width="4" height="8" rx="1.2"/><rect x="10" y="7" width="4" height="13" rx="1.2"/><rect x="16" y="4" width="4" height="16" rx="1.2"/></svg>',
+    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
     chevronRight: '<svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 1.5L6.5 7l-5 5.5"/></svg>',
     chevronLeft: '<svg viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2L2.5 10 10 18"/></svg>',
     minus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5.5 12h13"/></svg>',
@@ -1228,19 +2145,93 @@ globalThis.AirBikeCore = {
     main: {
       title: "Settings",
       groups: [
+        { rows: [{ type: "stepper", key: "TARGET_RPM", label: "Target cadence", format: fmtRpm }],
+          footer: (c) => `At ${c.TARGET_RPM} RPM or more the video plays at full speed and the bar turns green. Time at ${c.TARGET_RPM}+ RPM is counted on screen.` },
         { icons: true, rows: [
           { type: "link", page: "ride", icon: "gauge", tint: "var(--blue)", label: "Ride", value: (c) => fmtRpm(c.TARGET_RPM) },
+          { type: "link", page: "screen", icon: "display", tint: "#32ade6", label: "Ride screen", value: (c) => `${[c.HUD_TIME, c.HUD_TARGET_TIME, c.HUD_DISTANCE].filter(Boolean).length} of 3 shown` },
           { type: "link", page: "visual", icon: "contrast", tint: "var(--indigo)", label: "Visual reward", value: (c) => (c.VISUAL_REWARD ? "On" : "Off") },
           { type: "link", page: "bonus", icon: "sun", tint: "var(--orange)", label: "Bonus glow", value: (c) => (c.BONUS_GLOW ? `After ${fmtClock(c.BONUS_AFTER_SECONDS)}` : "Off") },
           { type: "link", page: "zone", icon: "timer", tint: "var(--green)", label: "Zone timing", value: (c) => `${c.ZONE_ENTER_SECONDS} s in, ${c.ZONE_EXIT_SECONDS} s out` },
+        ] },
+        { icons: true, rows: [
+          { type: "link", page: "goals", icon: "flag", tint: "#ff375f", label: "Goals", value: (c) => `${c.GOAL_TARGET_MIN} min at target` },
+          { type: "link", page: "summary", icon: "chart", tint: "#bf5af2", label: "Ride summary" },
+          { type: "link", page: "history", icon: "clock", tint: "#ac8e68", label: "Ride history", value: () => `${RideStore.list.length} ${RideStore.list.length === 1 ? "ride" : "rides"}` },
         ] },
         { icons: true, rows: [
           { type: "link", page: "advanced", icon: "more", tint: "var(--gray)", label: "Advanced" },
         ] },
         { rows: [{ type: "reset" }],
           footer: () => (Store.available
-            ? "Settings are saved on this device and used every time the app opens here."
+            ? "Settings are saved on this device and used every time the app opens here. Resetting them doesn't delete saved rides."
             : "This browser isn't letting the app save settings, so they'll go back to the defaults when the page reloads.") },
+      ],
+    },
+
+    screen: {
+      title: "Ride screen",
+      groups: [
+        { header: "Show under the cadence", rows: [
+          { type: "toggle", key: "HUD_TIME", label: "Ride time" },
+          { type: "toggle", key: "HUD_TARGET_TIME", label: "Time at target", },
+          { type: "toggle", key: "HUD_DISTANCE", label: "Distance" },
+          { type: "toggle", key: "HUD_VIDEO_SPEED", label: "Video speed" },
+        ], footer: (c) => `Ride time, time at ${c.TARGET_RPM}+ RPM and distance count while a ride is being recorded (Start ride), and stop while it's paused.` },
+        { header: "Distance unit", rows: [{ type: "segmented", key: "DISTANCE_UNIT", label: "Distance unit", options: [["km", "Kilometres"], ["mi", "Miles"]] }],
+          footer: `Distance is worked out from the speed the bike sends: ${DEFAULTS.KMH_AT_60_RPM} km/h at 60 RPM, as set in the AirBike sketch. It's a guide for comparing rides, not a road distance.` },
+        { header: "Recording", rows: [{ type: "toggle", key: "AUTO_START", label: "Start automatically" }],
+          footer: "Starts recording a ride as soon as pedalling begins, if no ride is running. Finish still has to be pressed." },
+      ],
+    },
+
+    goals: {
+      title: "Goals",
+      groups: [
+        { rows: [
+          { type: "stepper", key: "GOAL_TIME_MIN", label: "Ride time", format: (v) => `${v} min` },
+          { type: "stepper", key: "GOAL_TARGET_MIN", label: "Time at target", format: (v) => `${v} min` },
+          { type: "stepper", key: "GOAL_DISTANCE_KM", label: "Distance", format: (v, c) => { const d = fmtDistance(v * 1000, c.DISTANCE_UNIT); return `${d.value} ${d.unit}`; } },
+        ], footer: "Each goal fills one ring on the ride summary. Reaching them earns awards. It's worth agreeing them with the physiotherapist." },
+      ],
+    },
+
+    summary: {
+      title: "Ride summary",
+      groups: [
+        { rows: [{ type: "action", id: "PREVIEW_SUMMARY", label: "Show the last ride's summary", enabled: () => RideStore.list.length > 0,
+          run: () => Summary.open(RideStore.list[RideStore.list.length - 1], "view") }],
+          footer: "Shown after pressing Finish. Choose what it includes below." },
+        { header: "Sections", rows: [
+          { type: "toggle", key: "SUM_RINGS", label: "Goal rings" },
+          { type: "toggle", key: "SUM_AWARDS", label: "Awards" },
+          { type: "toggle", key: "SUM_CHART", label: "Cadence chart" },
+          { type: "toggle", key: "SUM_RECENT", label: "Recent rides" },
+          { type: "toggle", key: "SUM_NEXT_GOAL", label: "Next goal" },
+        ] },
+        { header: "Numbers", rows: [
+          { type: "toggle", key: "SUM_TIME", label: "Ride time" },
+          { type: "toggle", key: "SUM_TARGET", label: "Time at target" },
+          { type: "toggle", key: "SUM_DISTANCE", label: "Distance" },
+          { type: "toggle", key: "SUM_AVG_RPM", label: "Average cadence" },
+          { type: "toggle", key: "SUM_MAX_RPM", label: "Top cadence" },
+          { type: "toggle", key: "SUM_STREAK", label: "Longest in the zone" },
+          { type: "toggle", key: "SUM_COMPARE", label: "Compare with last ride" },
+        ], footer: "Comparisons and “Best yet” use earlier rides of the same kind: real rides with real rides, simulator rides with simulator rides." },
+      ],
+    },
+
+    history: {
+      title: "Ride history",
+      groups: [
+        { rows: [{ type: "history" }] },
+        { rows: [
+          { type: "action", id: "EXPORT", label: "Export rides (CSV)", enabled: () => RideStore.list.length > 0, run: exportRides },
+          { type: "action", id: "DELETE_ALL", label: "Delete all rides", destructive: true, confirm: "Tap again to delete all rides",
+            enabled: () => RideStore.list.length > 0, run: () => { RideStore.clear(); } },
+        ], footer: () => (RideStore.available
+          ? "Rides are kept in this browser on this device only. Export now and then to keep a copy, for example to share with the physiotherapist."
+          : "This browser isn't letting the app store rides, so rides can't be saved here.") },
       ],
     },
 
@@ -1514,6 +2505,50 @@ globalThis.AirBikeCore = {
       };
     },
 
+    action(def) {
+      const el = h("button", { type: "button", class: "cell action" + (def.destructive ? " destructive" : ""), "data-row": def.id, text: def.label });
+      let armed = false, timer = null;
+      el.addEventListener("click", () => {
+        if (def.confirm && !armed) {
+          armed = true; el.textContent = def.confirm;
+          timer = setTimeout(() => { armed = false; el.textContent = def.label; }, 4000);
+          return;
+        }
+        clearTimeout(timer); armed = false; el.textContent = def.label;
+        def.run();
+        SettingsSheet.refresh();
+      });
+      return { el, update() { setEnabled(el, def); } };
+    },
+
+    history() {
+      const list = h("div", { class: "history-list" });
+      const fmt = { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" };
+      return {
+        el: list,
+        update() {
+          list.textContent = "";
+          const rides = RideStore.list.slice().reverse();
+          if (!rides.length) {
+            list.append(h("div", { class: "cell empty", text: "No saved rides yet. Press Start ride on the ride screen, then Finish and Save ride." }));
+            return;
+          }
+          for (const r of rides.slice(0, 300)) {
+            const d = fmtDistance(r.distanceM, cfg.DISTANCE_UNIT);
+            const title = h("span", { text: fmtDate(r.startedAt, fmt) });
+            if (r.simulator) title.append(h("span", { class: "tag", text: "Simulator" }));
+            const b = h("button", { type: "button", class: "cell link history-item", "data-ride": r.id }, [
+              h("span", { class: "history-text" }, [title,
+                h("span", { class: "history-sub", text: `${fmtDuration(r.elapsedS)} ride, ${fmtDuration(r.atTargetS)} at ${r.targetRpm}+, ${d.value} ${d.unit}` })]),
+            ]);
+            b.insertAdjacentHTML("beforeend", ICONS.chevronRight);
+            b.addEventListener("click", () => Summary.open(r, "view"));
+            list.append(b);
+          }
+        },
+      };
+    },
+
     reset() {
       const el = h("button", { type: "button", class: "cell destructive", "data-row": "RESET", text: "Reset all settings" });
       let armed = false, timer = null;
@@ -1754,8 +2789,16 @@ globalThis.AirBikeCore = {
       VideoController.tick(dt, target);
       Effects.update({ rpm: cad.rpm, dt });
       UI.renderCadence(cad, VideoController.state, VideoController.hasVideo, Effects.zone.inZone);
+      // Distance uses the speed the bike itself reports; the simulator uses the same rule as the sketch.
+      const fresh = cad.source === "bike" && !cad.stale && typeof Bike.lastSpeed === "number";
+      Session.update({
+        rpm: cad.rpm, speedKmh: fresh ? Bike.lastSpeed : speedFromCadence(cad.rpm, cfg),
+        simulator: cad.source === "simulator", inZone: Effects.zone.inZone, zoneStreakS: Effects.zone.streak, bonus: Effects.bonus,
+      }, Math.min((now - App.lastSessionTick) / 1000, 60));   // real elapsed time, even if the browser slowed the timer
+      App.lastSessionTick = now;
       App.renderStatus();
     },
+    lastSessionTick: performance.now(),
 
     init() {
       UI.initBar();
@@ -1764,8 +2807,11 @@ globalThis.AirBikeCore = {
       Wake.init();
       Fullscreen.init();
       Controls.init();
+      RideStore.load();
+      Summary.init();
       SettingsSheet.init();
       Settings.onChange(() => App.applySettings());
+      Settings.onChange(() => Session.render());
 
       Bike.onChange = () => {
         App.refreshStatus();
@@ -1790,13 +2836,18 @@ globalThis.AirBikeCore = {
       $("btn-sim").addEventListener("click", () => { Wake.request(); Sim.toggle(); });
       $("sim-slider").addEventListener("input", (e) => Sim.set(e.target.value));
       Sim.set($("sim-slider").value);
-      window.addEventListener("pagehide", () => Store.flush());
+      $("btn-start").addEventListener("click", () => { Wake.request(); Session.start(); });
+      $("btn-pause").addEventListener("click", () => Session.togglePause());
+      $("btn-finish").addEventListener("click", () => Session.finish());
+      window.addEventListener("pagehide", () => { Store.flush(); Session.persist(); });
 
+      Session.render();
+      Session.restore();
       setInterval(App.tick, cfg.CONTROL_TICK_MS);
     },
   };
 
-  window.AirBikeApp = { Bike, Sim, VideoController, UI, App, Effects, Settings, SettingsSheet, Store, cfg };   // for debugging in DevTools
+  window.AirBikeApp = { Bike, Sim, VideoController, UI, App, Effects, Settings, SettingsSheet, Store, cfg, RideStore, Session, Summary };   // for debugging in DevTools
   App.init();
 })();
 </script>
