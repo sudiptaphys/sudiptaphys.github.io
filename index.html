@@ -4,117 +4,282 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
 <title>AirBike Ride</title>
 <link rel="icon" href="data:,">
 <style>
   :root {
-    --bg: #000;
-    --text: #fff;
-    --muted: #cbd5e1;
-    --panel: rgba(0, 0, 0, 0.62);
-    --zone: #22c55e;
-    --zone-dark: #14532d;
-    --below: #e5e7eb;
-    --track: #374151;
-    --warn: #f59e0b;
-    --error: #ef4444;
-    --info: #60a5fa;
-    --sim: #fb923c;
-    --btn: #1f2937;
-    --btn-border: #6b7280;
+    --font: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --label: #ffffff;
+    --label2: rgba(235, 235, 245, 0.62);
+    --label3: rgba(235, 235, 245, 0.30);
+    --blue: #0a84ff;
+    --green: #30d158;
+    --orange: #ff9f0a;
+    --red: #ff453a;
+    --indigo: #5e5ce6;
+    --gray: #8e8e93;
+    --gold: #ffc14d;
+    --glass: rgba(36, 36, 40, 0.62);
+    --hairline: rgba(255, 255, 255, 0.14);
+    --cell: rgba(118, 118, 128, 0.20);
+    --separator: rgba(84, 84, 88, 0.65);
+    --ease: cubic-bezier(0.32, 0.72, 0, 1);
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
-  #app { position: fixed; inset: 0; background: var(--bg); }
+  html, body { margin: 0; height: 100%; background: #000; color: var(--label); font-family: var(--font);
+    -webkit-font-smoothing: antialiased; overflow: hidden; }
+  #app { position: fixed; inset: 0; background: #000; }
 
-  /* ---------- video ---------- */
+  /* ================= video stage + reward overlays ================= */
+  #stage { position: absolute; inset: 0; isolation: isolate; }
   #video { position: absolute; inset: 0; width: 100%; height: 100%; background: #000; display: none; }
-  #app.has-video #video { display: block; }
+  .overlay { position: absolute; inset: 0; pointer-events: none; opacity: 0; display: none; will-change: opacity; }
+  #app.has-video #video, #app.has-video .overlay { display: block; }
+  /* Haze: a soft, light veil (opacity set by the effects code) */
+  #haze, .pv-haze { background: radial-gradient(130% 100% at 50% 40%, rgba(224, 228, 234, 0.50) 0%, rgba(200, 206, 215, 0.88) 100%); }
+  /* Warm glow: a warm grade over the picture, plus warm light at the edges */
+  #glow, .pv-glow { mix-blend-mode: soft-light; background: radial-gradient(125% 100% at 50% 45%, rgba(255, 196, 120, 0.75) 0%, rgba(255, 140, 40, 1) 100%); }
+  #glow-edge, .pv-glow-edge { mix-blend-mode: screen; background: radial-gradient(115% 90% at 50% 45%, rgba(255, 170, 80, 0) 45%, rgba(255, 150, 60, 0.62) 100%); }
+
   #placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
-    justify-content: center; text-align: center; padding: 16px; color: var(--muted); }
-  #placeholder h1 { font-size: clamp(28px, 6vw, 56px); margin: 0 0 12px; color: var(--text); }
-  #placeholder p { font-size: clamp(18px, 2.6vw, 26px); margin: 4px 0; max-width: 34em; }
+    justify-content: center; text-align: center; padding: 16px; color: var(--label2); }
+  #placeholder h1 { font-size: clamp(30px, 6vw, 56px); font-weight: 700; letter-spacing: -0.02em; margin: 0 0 12px; color: var(--label); }
+  #placeholder p { font-size: clamp(18px, 2.6vw, 24px); line-height: 1.4; margin: 4px 0; max-width: 32em; }
   #app.has-video #placeholder { display: none; }
 
-  /* ---------- top bar (auto-hides during a ride) ---------- */
+  /* ================= top bar (auto-hides during a ride) ================= */
   #topbar { position: absolute; top: 0; left: 0; right: 0; display: flex; flex-wrap: wrap; gap: 10px;
-    align-items: center; padding: 12px 16px; background: linear-gradient(rgba(0,0,0,.75), rgba(0,0,0,0));
-    transition: opacity .6s ease; z-index: 5; }
+    align-items: center; padding: 14px 16px 24px; background: linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0));
+    transition: opacity 0.6s ease; z-index: 5; }
   #app.controls-hidden #topbar { opacity: 0; pointer-events: none; }
   #app.controls-hidden { cursor: none; }
   .spacer { flex: 1 1 auto; }
-  button { font: inherit; font-size: 19px; font-weight: 600; color: var(--text); background: var(--btn);
-    border: 2px solid var(--btn-border); border-radius: 10px; padding: 10px 16px; min-height: 48px; cursor: pointer; }
-  button:hover { border-color: #e5e7eb; }
-  button:focus-visible { outline: 3px solid var(--info); outline-offset: 2px; }
-  button.primary { background: #1d4ed8; border-color: #93c5fd; }
-  button.sim-on { background: #9a3412; border-color: var(--sim); }
-  button[hidden] { display: none; }
+  #app button { font: inherit; font-size: 17px; font-weight: 600; color: var(--label); background: var(--glass);
+    -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+    border: 0; box-shadow: inset 0 0 0 1px var(--hairline); border-radius: 999px; padding: 0 20px; min-height: 48px;
+    cursor: pointer; transition: background-color 0.2s ease, transform 0.15s ease; }
+  #app button:hover { background: rgba(60, 60, 66, 0.72); }
+  #app button:active { transform: scale(0.97); }
+  #app button:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+  #app button.primary { background: var(--blue); box-shadow: none; }
+  #app button.sim-on { background: var(--orange); color: #000; box-shadow: none; }
+  #app button[hidden] { display: none; }
+  #app .icon-btn { width: 48px; padding: 0; display: inline-grid; place-items: center; }
+  .icon-btn svg { width: 24px; height: 24px; }
 
-  #status { display: inline-flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 600;
-    background: var(--panel); border: 2px solid var(--btn-border); border-radius: 999px; padding: 8px 16px; min-height: 48px; }
-  #status .dot { width: 16px; height: 16px; border-radius: 50%; background: #9ca3af; flex: none; }
-  #status[data-tone="ok"] .dot { background: var(--zone); }
-  #status[data-tone="warn"] .dot { background: var(--warn); }
-  #status[data-tone="error"] .dot { background: var(--error); }
-
-  /* ---------- messages ---------- */
-  #messages { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); width: min(92vw, 820px);
-    display: flex; flex-direction: column; gap: 10px; z-index: 6; }
-  .msg { display: flex; gap: 12px; align-items: flex-start; background: rgba(0,0,0,.85); border: 3px solid var(--info);
-    border-radius: 12px; padding: 14px 16px; font-size: clamp(18px, 2.4vw, 24px); line-height: 1.35; }
-  .msg[data-level="warn"] { border-color: var(--warn); }
-  .msg[data-level="error"] { border-color: var(--error); }
-  .msg .text { flex: 1; }
-  .msg button { font-size: 18px; min-height: 40px; padding: 4px 12px; }
-
-  /* ---------- cadence panel (never hides) ---------- */
-  #cadence { background: var(--panel); border-radius: 18px; padding: 10px 20px 16px; width: min(100%, max(620px, 68vh)); }
-  #cadence .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 14px; }
-  #rpm { font-size: clamp(88px, 20vh, 220px); font-weight: 800; line-height: .95; font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em; text-shadow: 0 2px 12px rgba(0,0,0,.8); }
-  #rpm-unit { font-size: clamp(26px, 4.5vh, 44px); font-weight: 700; color: var(--muted); }
-  #sim-badge { margin-left: auto; align-self: center; background: var(--sim); color: #000; font-weight: 800;
-    font-size: clamp(18px, 3vh, 28px); padding: 6px 14px; border-radius: 8px; letter-spacing: .06em; }
-  #sim-badge[hidden] { display: none; }
-
-  #bar { position: relative; height: clamp(30px, 5vh, 46px); margin-top: 10px; border-radius: 10px;
-    background: var(--track); overflow: hidden; }
-  #bar-zone { position: absolute; top: 0; bottom: 0; right: 0; background: var(--zone-dark); }
-  #bar-fill { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: var(--below);
-    transition: width .3s linear, background-color .3s linear; }
-  #bar-fill.in-zone { background: var(--zone); }
-  #bar-marker { position: absolute; top: -2px; bottom: -2px; width: 5px; margin-left: -2px; background: #fff; }
-  #bar-labels { position: relative; height: 26px; font-size: 20px; font-weight: 700; color: var(--muted); }
-  #bar-target-label { position: absolute; transform: translateX(-50%); top: 2px; color: #fff; }
-  #speed-line { font-size: clamp(18px, 2.8vh, 26px); color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
-
-  /* ---------- simulator panel ---------- */
-  #sim-panel { background: var(--panel);
-    border: 3px solid var(--sim); border-radius: 16px; padding: 12px 18px; width: min(100%, 360px); }
-  #sim-panel[hidden] { display: none; }
-  #sim-panel label { display: block; font-size: 20px; font-weight: 700; color: var(--sim); margin-bottom: 6px; }
-  #sim-slider { width: 100%; height: 44px; accent-color: var(--sim); }
-  #sim-value { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
-
-  #wake-note { font-size: 15px; color: var(--muted); flex-basis: 100%; text-align: right; margin-top: -4px; }
+  #status { display: inline-flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 600; min-height: 48px;
+    padding: 0 18px 0 16px; border-radius: 999px; background: var(--glass); box-shadow: inset 0 0 0 1px var(--hairline);
+    -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); }
+  #status .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--gray); flex: none; }
+  #status[data-tone="ok"] .dot { background: var(--green); }
+  #status[data-tone="warn"] .dot { background: var(--orange); }
+  #status[data-tone="error"] .dot { background: var(--red); }
+  #wake-note { font-size: 13px; color: var(--label2); flex-basis: 100%; text-align: right; margin-top: -4px; }
   #wake-note:empty { display: none; }
 
-  /* Bottom area: cadence panel and simulator side by side; the simulator moves above when there's no room */
+  /* ================= messages ================= */
+  #messages { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); width: min(calc(100vw - 32px), 760px);
+    display: flex; flex-direction: column; gap: 10px; z-index: 6; }
+  .msg { display: flex; gap: 14px; align-items: flex-start; background: rgba(28, 28, 30, 0.88);
+    -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+    box-shadow: inset 0 0 0 1px var(--hairline), 0 12px 32px rgba(0, 0, 0, 0.35); border-radius: 20px;
+    padding: 16px 16px 16px 20px; font-size: clamp(17px, 2.2vw, 22px); line-height: 1.38; }
+  .msg .msg-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--blue); flex: none; margin-top: 0.42em; }
+  .msg[data-level="warn"] .msg-dot { background: var(--orange); }
+  .msg[data-level="error"] .msg-dot { background: var(--red); }
+  .msg .text { flex: 1; }
+  #app .msg button { font-size: 16px; min-height: 40px; padding: 0 16px; }
+
+  /* ================= bottom: streak + cadence + simulator ================= */
   #bottom { position: absolute; left: 16px; right: 16px; bottom: 16px; z-index: 4; display: flex;
     flex-wrap: wrap-reverse; align-items: flex-end; justify-content: space-between; gap: 16px; pointer-events: none; }
   #bottom > * { pointer-events: auto; }
+  #ride-col { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; width: min(100%, max(620px, 68vh)); }
+
+  #streak { display: inline-flex; align-items: center; gap: 10px; padding: 8px 18px 8px 12px; border-radius: 999px;
+    background: rgba(0, 0, 0, 0.55); box-shadow: inset 0 0 0 1.5px rgba(48, 209, 88, 0.7);
+    font-size: clamp(18px, 2.8vh, 26px); font-weight: 600; opacity: 0; transform: translateY(8px);
+    transition: opacity 0.9s ease, transform 0.9s var(--ease), box-shadow 1.5s ease, color 1.5s ease; }
+  #streak.show { opacity: 1; transform: none; }
+  #streak svg { width: 1.15em; height: 1.15em; flex: none; color: var(--green); transition: color 1.5s ease; }
+  #streak .sun { display: none; }
+  #streak.bonus { box-shadow: inset 0 0 0 1.5px rgba(255, 193, 77, 0.95); color: #ffe6b0; }
+  #streak.bonus svg { color: var(--gold); }
+  #streak.bonus .dot-icon { display: none; }
+  #streak.bonus .sun { display: block; }
+  #streak-time { font-variant-numeric: tabular-nums; color: var(--label2); font-weight: 500; }
+
+  #cadence { width: 100%; background: rgba(0, 0, 0, 0.52); border-radius: 30px; padding: 12px 24px 20px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); transition: box-shadow 1.5s ease; }
+  #cadence.zone { box-shadow: inset 0 0 0 2px rgba(48, 209, 88, 0.85), 0 0 40px rgba(48, 209, 88, 0.20); }
+  #cadence.bonus { box-shadow: inset 0 0 0 2px rgba(255, 193, 77, 0.92), 0 0 48px rgba(255, 170, 60, 0.28); }
+  #cadence .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 14px; }
+  #rpm { font-size: clamp(88px, 20vh, 220px); font-weight: 700; line-height: 0.95; font-variant-numeric: tabular-nums;
+    letter-spacing: -0.035em; text-shadow: 0 2px 16px rgba(0, 0, 0, 0.6); }
+  #rpm-unit { font-size: clamp(24px, 4.2vh, 40px); font-weight: 600; color: var(--label2); }
+  #sim-badge { margin-left: auto; align-self: center; background: var(--orange); color: #000; font-weight: 700;
+    font-size: clamp(16px, 2.6vh, 24px); padding: 6px 16px; border-radius: 999px; }
+  #sim-badge[hidden] { display: none; }
+
+  #bar { position: relative; height: clamp(26px, 4.4vh, 40px); margin-top: 12px; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16); overflow: hidden; }
+  #bar-zone { position: absolute; top: 0; bottom: 0; right: 0; background: rgba(48, 209, 88, 0.24); }
+  #bar-fill { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: #fff;
+    transition: width 0.3s linear, background-color 0.8s ease; }
+  #bar-fill.in-zone { background: var(--green); }
+  #bar-marker { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; background: #fff; }
+  #bar-labels { position: relative; height: 26px; font-size: 19px; font-weight: 600; color: var(--label2); }
+  #bar-target-label { position: absolute; transform: translateX(-50%); top: 3px; color: #fff; }
+  #speed-line { font-size: clamp(17px, 2.6vh, 24px); color: var(--label2); margin-top: 6px; font-variant-numeric: tabular-nums; }
+
+  #sim-panel { background: rgba(0, 0, 0, 0.55); box-shadow: inset 0 0 0 2px var(--orange); border-radius: 24px;
+    padding: 14px 20px; width: min(100%, 360px); }
+  #sim-panel[hidden] { display: none; }
+  #sim-panel label { display: block; font-size: 17px; font-weight: 600; color: var(--orange); margin-bottom: 4px; }
+  #sim-slider { width: 100%; height: 44px; accent-color: var(--orange); border-radius: 8px; }
+  #sim-slider:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+  #sim-value { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* ================= settings sheet ================= */
+  #settings { position: fixed; margin: 0; padding: 0; border: 0; max-width: none; max-height: none; overflow: hidden;
+    color: var(--label); font-family: var(--font); font-size: 17px; user-select: none; -webkit-user-select: none;
+    background: rgba(28, 28, 30, 0.84); -webkit-backdrop-filter: blur(40px) saturate(180%); backdrop-filter: blur(40px) saturate(180%);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 30px 80px rgba(0, 0, 0, 0.5), 0 0 0 200vmax rgba(0, 0, 0, 0);
+    transition: transform 0.5s var(--ease), box-shadow 0.5s ease; }
+  #settings::backdrop { background: transparent; }
+  #settings.open { transform: none; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 30px 80px rgba(0, 0, 0, 0.5), 0 0 0 200vmax rgba(0, 0, 0, 0.22); }
+  @media (min-width: 720px) {
+    #settings { inset: 16px 16px 16px auto; width: min(460px, calc(100vw - 32px)); height: calc(100% - 32px);
+      border-radius: 28px; transform: translateX(calc(100% + 40px)); }
+    .grabber { display: none; }
+  }
+  @media (max-width: 719.98px) {
+    #settings { inset: auto 0 0 0; width: 100%; height: min(92%, 980px); border-radius: 28px 28px 0 0; transform: translateY(100%); }
+  }
+  #settings.open { transform: none; }
+  .grabber { position: absolute; top: 6px; left: 50%; width: 36px; height: 5px; margin-left: -18px; border-radius: 3px;
+    background: rgba(255, 255, 255, 0.28); z-index: 3; }
+
+  .pages { position: absolute; inset: 0; }
+  .page { position: absolute; inset: 0; display: flex; flex-direction: column; transform: translateX(100%);
+    transition: transform 0.5s var(--ease), opacity 0.5s var(--ease); }
+  .page.current { transform: none; }
+  .page.off-left { transform: translateX(-30%); opacity: 0; }
+
+  .navbar { position: relative; flex: none; height: 58px; padding: 6px 8px 0; display: grid;
+    grid-template-columns: 1fr auto 1fr; align-items: center; }
+  .navbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--separator);
+    transform: scaleY(0.5); opacity: 0; transition: opacity 0.2s ease; }
+  .page.scrolled .navbar::after { opacity: 1; }
+  .nav-title { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; transition: opacity 0.2s ease; }
+  .page[data-page="main"] .nav-title { opacity: 0; }
+  .page[data-page="main"].scrolled .nav-title { opacity: 1; }
+  .nav-btn { font: inherit; font-size: 17px; color: var(--blue); background: none; border: 0; padding: 0 10px;
+    min-height: 44px; border-radius: 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+  .nav-btn:active { opacity: 0.5; }
+  .nav-btn:focus-visible, .cell:focus-visible, .step-btn:focus-visible, .segmented button:focus-visible { outline: 3px solid var(--blue); outline-offset: -3px; }
+  .nav-back { justify-self: start; padding-left: 4px; }
+  .nav-back svg { width: 12px; height: 20px; }
+  .nav-done { justify-self: end; font-weight: 600; grid-column: 3; }
+
+  .page-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 10px 16px 40px; scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent; }
+  .large-title { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; margin: -8px 4px 20px; }
+
+  .group { margin: 0 0 32px; }
+  .group-header { font-size: 15px; font-weight: 600; color: var(--label); margin: 0 4px 8px; }
+  .group-body { background: var(--cell); border-radius: 14px; overflow: hidden; }
+  .group-footer { font-size: 13px; line-height: 1.4; color: var(--label2); margin: 8px 16px 0; }
+
+  .cell { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px;
+    padding: 10px 16px; margin: 0; font: inherit; font-size: 17px; color: inherit; text-align: left;
+    background: transparent; border: 0; transition: opacity 0.25s ease; }
+  .cell + .cell::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; height: 1px;
+    background: var(--separator); transform: scaleY(0.5); transform-origin: top; }
+  .group-body.has-icons .cell + .cell::before { left: 58px; }
+  .cell.link, label.cell { cursor: pointer; }
+  .cell.link:active { background: rgba(255, 255, 255, 0.07); }
+  .cell.disabled { opacity: 0.38; }
+  .cell-label { flex: 1; min-width: 0; }
+  .cell-value { color: var(--label2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .chev { width: 8px; height: 14px; color: var(--label3); flex: none; margin-left: 2px; }
+  .tile { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex: none; color: #fff; }
+  .tile svg { width: 19px; height: 19px; }
+  .cell.destructive { color: var(--red); justify-content: center; cursor: pointer; }
+  .cell.destructive:active { background: rgba(255, 255, 255, 0.07); }
+
+  /* switch */
+  .switch { appearance: none; -webkit-appearance: none; flex: none; position: relative; width: 51px; height: 31px; margin: 0;
+    border-radius: 999px; background: rgba(120, 120, 128, 0.36); cursor: pointer; transition: background-color 0.25s ease; }
+  .switch::before { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%;
+    background: #fff; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15), 0 3px 1px rgba(0, 0, 0, 0.06); transition: transform 0.3s var(--ease); }
+  .switch:checked { background: var(--green); }
+  .switch:checked::before { transform: translateX(20px); }
+  .switch:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+
+  /* stepper */
+  .stepper { display: inline-flex; align-items: center; flex: none; height: 36px; border-radius: 9px; background: rgba(118, 118, 128, 0.26); }
+  .step-btn { width: 50px; height: 36px; border: 0; padding: 0; background: transparent; color: var(--label);
+    display: grid; place-items: center; cursor: pointer; border-radius: 9px; transition: background-color 0.15s ease; }
+  .step-btn svg { width: 18px; height: 18px; }
+  .step-btn:active:not(:disabled) { background: rgba(255, 255, 255, 0.14); }
+  .step-btn:disabled { color: var(--label3); cursor: default; }
+  .stepper .sep { width: 1px; height: 18px; background: rgba(255, 255, 255, 0.18); }
+
+  /* slider */
+  .slider-cell { flex-direction: column; align-items: stretch; gap: 6px; padding: 12px 16px 10px; }
+  .slider-top { display: flex; align-items: baseline; gap: 12px; }
+  .range { -webkit-appearance: none; appearance: none; width: 100%; height: 32px; margin: 0; background: transparent; cursor: pointer; --p: 50%; }
+  .range:focus-visible { outline: none; }
+  .range::-webkit-slider-runnable-track { height: 4px; border-radius: 2px;
+    background: linear-gradient(to right, var(--blue) var(--p), rgba(120, 120, 128, 0.40) var(--p)); }
+  .range::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; margin-top: -12px; border-radius: 50%; background: #fff;
+    box-shadow: 0 0.5px 4px rgba(0, 0, 0, 0.12), 0 6px 13px rgba(0, 0, 0, 0.16); transition: transform 0.15s ease; }
+  .range:active::-webkit-slider-thumb { transform: scale(1.08); }
+  .range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--blue), 0 6px 13px rgba(0, 0, 0, 0.16); }
+  .range::-moz-range-track { height: 4px; border-radius: 2px; background: rgba(120, 120, 128, 0.40); }
+  .range::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--blue); }
+  .range::-moz-range-thumb { width: 28px; height: 28px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 6px 13px rgba(0, 0, 0, 0.16); }
+
+  /* segmented control */
+  .seg-cell { padding: 10px 12px; }
+  .segmented { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; width: 100%; padding: 2px;
+    border-radius: 9px; background: rgba(118, 118, 128, 0.26); --i: 0; --n: 2; }
+  .seg-thumb { position: absolute; top: 2px; bottom: 2px; left: 2px; width: calc((100% - 4px) / var(--n)); border-radius: 7px;
+    background: #636366; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12), 0 3px 1px rgba(0, 0, 0, 0.04);
+    transform: translateX(calc(var(--i) * 100%)); transition: transform 0.35s var(--ease); }
+  .segmented button { position: relative; z-index: 1; min-height: 36px; border: 0; background: transparent; color: var(--label);
+    font: inherit; font-size: 15px; font-weight: 500; cursor: pointer; border-radius: 7px; }
+  .segmented button[aria-checked="true"] { font-weight: 600; }
+
+  /* live preview */
+  .preview-cell { padding: 12px; }
+  .preview { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; isolation: isolate;
+    background: #000; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+  .preview svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .preview > div { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+  .preview .preview-caption { inset: auto auto 10px 10px; opacity: 1; padding: 5px 12px; border-radius: 999px; font-size: 14px;
+    font-weight: 600; background: rgba(0, 0, 0, 0.45); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+
+  @media (prefers-reduced-motion: reduce) {
+    #settings, .page, .switch::before, .seg-thumb, #streak { transition-duration: 0.01s !important; }
+  }
 </style>
 </head>
 <body>
 <div id="app">
-  <video id="video" muted playsinline loop preload="auto" disablepictureinpicture></video>
+  <div id="stage">
+    <video id="video" muted playsinline loop preload="auto" disablepictureinpicture></video>
+    <div id="haze" class="overlay"></div>
+    <div id="glow" class="overlay"></div>
+    <div id="glow-edge" class="overlay"></div>
+  </div>
 
   <div id="placeholder">
     <h1>Choose a video to start</h1>
-    <p>Press <b>Connect bike</b>, then <b>Choose video</b>.</p>
-    <p>The video plays at full speed at 70 RPM or more, slows down below that, and pauses when pedalling stops.</p>
+    <p>Connect the bike, then choose a video.</p>
+    <p>The video plays at full speed at your target cadence, slows below it, and pauses when pedalling stops.</p>
   </div>
 
   <div id="topbar">
@@ -126,6 +291,9 @@
     <button id="btn-video" type="button">Choose video</button>
     <button id="btn-sim" type="button" aria-pressed="false">Simulator</button>
     <button id="btn-fullscreen" type="button">Fullscreen</button>
+    <button id="btn-settings" class="icon-btn" type="button" aria-label="Settings" title="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h8.5M17.5 7H20M4 17h2.5M11.5 17H20"/><circle cx="15" cy="7" r="2.4"/><circle cx="9" cy="17" r="2.4"/></svg>
+    </button>
     <input id="file-input" type="file" accept="video/*" hidden>
     <div id="wake-note"></div>
   </div>
@@ -133,23 +301,35 @@
   <div id="messages" aria-live="assertive"></div>
 
   <div id="bottom">
-  <div id="cadence">
-    <div class="row">
-      <span id="rpm">0</span><span id="rpm-unit">RPM</span>
-      <span id="sim-badge" hidden>SIMULATOR</span>
+    <div id="ride-col">
+      <div id="streak" aria-live="polite">
+        <svg class="dot-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="currentColor"/></svg>
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="currentColor"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>
+        <span id="streak-label">In the zone</span><span id="streak-time">0:00</span>
+      </div>
+      <div id="cadence">
+        <div class="row">
+          <span id="rpm">0</span><span id="rpm-unit">RPM</span>
+          <span id="sim-badge" hidden>Simulator</span>
+        </div>
+        <div id="bar"><div id="bar-zone"></div><div id="bar-fill"></div><div id="bar-marker"></div></div>
+        <div id="bar-labels"><span id="bar-target-label">70</span></div>
+        <div id="speed-line">Waiting for pedalling</div>
+      </div>
     </div>
-    <div id="bar"><div id="bar-zone"></div><div id="bar-fill"></div><div id="bar-marker"></div></div>
-    <div id="bar-labels"><span id="bar-target-label">70</span></div>
-    <div id="speed-line">Waiting for pedalling</div>
-  </div>
 
-  <div id="sim-panel" hidden>
-    <label for="sim-slider">Simulator cadence</label>
-    <input id="sim-slider" type="range" min="0" max="120" step="1" value="0">
-    <div id="sim-value">0 RPM</div>
-  </div>
+    <div id="sim-panel" hidden>
+      <label for="sim-slider">Simulator cadence</label>
+      <input id="sim-slider" type="range" min="0" max="120" step="1" value="0">
+      <div id="sim-value">0 RPM</div>
+    </div>
   </div>
 </div>
+
+<dialog id="settings" aria-label="Settings">
+  <div class="grabber"></div>
+  <div class="pages" id="settings-pages"></div>
+</dialog>
 
 <!--
   =====================================================================
@@ -160,26 +340,115 @@
 "use strict";
 
 // ---------------------------------------------------------------------
-// SETTINGS - change these to tune the app.
+// DEFAULT SETTINGS - every tunable value lives here.
+// Values marked "editable" can be changed in the Settings screen; the
+// user's choices are saved on the device and override these defaults.
 // ---------------------------------------------------------------------
-const CONFIG = Object.freeze({
+const DEFAULTS = Object.freeze({
+  // Ride (editable)
   TARGET_RPM: 70,              // at or above this cadence the video plays at normal speed (1.0x)
   MIN_PLAYBACK_RATE: 0.3,      // slowest speed while still pedalling
+  VIDEO_FIT: "cover",          // "cover" fills the screen (may crop edges), "contain" shows the whole picture
+
+  // Visual reward (editable)
+  VISUAL_REWARD: true,         // grey/hazy when slow, full colour at speed
+  COLOUR_START_OFFSET: 15,     // colour starts returning at TARGET_RPM - this (70 - 15 = 55 RPM)
+  COLOUR_FULL_OFFSET: 0,       // full colour at TARGET_RPM - this (70 RPM)
+  GREY_AMOUNT: 0.9,            // 0..1  how much colour is removed when slow
+  DIM_AMOUNT: 0.3,             // 0..0.7 how much darker the picture gets when slow
+  HAZE_AMOUNT: 0.5,            // 0..1  strength of the light haze
+  SOFTNESS_PX: 2,              // 0..6  slight blur when slow (px)
+  CLARITY_RISE_SECONDS: 1.5,   // colour returns over about this long
+  CLARITY_FALL_SECONDS: 3,     // colour fades over about this long (slower = gentler)
+
+  // Bonus (editable)
+  BONUS_GLOW: true,            // warm glow after holding the zone
+  BONUS_AFTER_SECONDS: 120,    // hold the zone this long for the glow
+  GLOW_STRENGTH: 0.7,          // 0.1..1
+  GLOW_FADE_SECONDS: 4,        // the glow fades in/out over about this long
+  SHOW_STREAK: true,           // show "In the zone 1:23" above the cadence
+
+  // Zone timing / anti-flicker (editable)
+  ZONE_ENTER_SECONDS: 5,       // zone turns on after this long at or above TARGET_RPM
+  ZONE_EXIT_MARGIN_RPM: 5,     // zone ends below TARGET_RPM - this (65 RPM)...
+  ZONE_EXIT_SECONDS: 3,        // ...held for this long
+
+  // Advanced (editable)
   SPEED_EASE_SECONDS: 1.0,     // speed changes take about this long (95% of the way)
   STOP_EASE_SECONDS: 0.5,      // when cadence is 0, the video eases down and pauses within this time
   DATA_TIMEOUT_MS: 2000,       // no cadence data for longer than this = treat as stopped
+  CONTROLS_HIDE_MS: 5000,      // hide the buttons after this much inactivity during a ride
+
+  // Fixed (not shown in Settings)
   PAUSE_BELOW_RATE: 0.15,      // while stopping, pause once the eased speed drops below this
   RESUME_START_RATE: 0.15,     // when pedalling starts again, play from this speed and ease up
   BROWSER_MIN_RATE: 0.0625,    // Chrome rejects playbackRate values below this (NotSupportedError)
   BROWSER_MAX_RATE: 16,        // ...and above this
-  CONTROL_TICK_MS: 50,         // how often the speed control runs
+  CONTROL_TICK_MS: 50,         // how often the speed and effects control runs
   DISPLAY_MAX_RPM: 120,        // right-hand end of the cadence bar
   SIM_MAX_RPM: 120,            // simulator slider range 0..this
   RECONNECT_DELAYS_MS: [1000, 2000, 4000, 8000, 10000], // waits between reconnect tries; the last one repeats
   CONNECT_TIMEOUT_MS: 20000,   // give up on one connection attempt after this long
-  CONTROLS_HIDE_MS: 5000,      // hide the buttons after this much inactivity during a ride
-  VIDEO_FIT: "cover",          // "cover" fills the screen (may crop edges), "contain" shows the whole picture
 });
+const CONFIG = DEFAULTS;       // name used by Step 1 code and tests
+
+// Allowed values for each editable setting (used to validate saved settings).
+const LIMITS = Object.freeze({
+  TARGET_RPM:           { min: 40,   max: 110,   step: 1 },
+  MIN_PLAYBACK_RATE:    { min: 0.2,  max: 0.6,   step: 0.05 },
+  VIDEO_FIT:            { type: "enum", values: ["cover", "contain"] },
+  VISUAL_REWARD:        { type: "bool" },
+  COLOUR_START_OFFSET:  { min: 5,    max: 40,    step: 1 },
+  COLOUR_FULL_OFFSET:   { min: 0,    max: 20,    step: 1 },
+  GREY_AMOUNT:          { min: 0,    max: 1,     step: 0.05 },
+  DIM_AMOUNT:           { min: 0,    max: 0.7,   step: 0.05 },
+  HAZE_AMOUNT:          { min: 0,    max: 1,     step: 0.05 },
+  SOFTNESS_PX:          { min: 0,    max: 6,     step: 0.5 },
+  CLARITY_RISE_SECONDS: { min: 0.5,  max: 5,     step: 0.5 },
+  CLARITY_FALL_SECONDS: { min: 0.5,  max: 8,     step: 0.5 },
+  BONUS_GLOW:           { type: "bool" },
+  BONUS_AFTER_SECONDS:  { min: 30,   max: 600,   step: 30 },
+  GLOW_STRENGTH:        { min: 0.1,  max: 1,     step: 0.05 },
+  GLOW_FADE_SECONDS:    { min: 1,    max: 10,    step: 0.5 },
+  SHOW_STREAK:          { type: "bool" },
+  ZONE_ENTER_SECONDS:   { min: 1,    max: 15,    step: 1 },
+  ZONE_EXIT_MARGIN_RPM: { min: 1,    max: 15,    step: 1 },
+  ZONE_EXIT_SECONDS:    { min: 1,    max: 10,    step: 1 },
+  SPEED_EASE_SECONDS:   { min: 0.5,  max: 3,     step: 0.25 },
+  STOP_EASE_SECONDS:    { min: 0.3,  max: 1.5,   step: 0.1 },
+  DATA_TIMEOUT_MS:      { min: 1000, max: 5000,  step: 500 },
+  CONTROLS_HIDE_MS:     { min: 3000, max: 30000, step: 1000 },
+});
+const COLOUR_RANGE_MIN_RPM = 5;   // "colour starts" must be at least this far below "full colour"
+
+const roundStep = (v, step) => Number((Math.round(v / step) * step).toFixed(6));
+
+/** Build a complete, valid settings object from saved data (anything invalid falls back to the default). */
+function sanitizeSettings(raw) {
+  const out = { ...DEFAULTS };
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    for (const [key, lim] of Object.entries(LIMITS)) {
+      if (!(key in raw)) continue;
+      const v = raw[key];
+      if (lim.type === "bool") { if (typeof v === "boolean") out[key] = v; }
+      else if (lim.type === "enum") { if (lim.values.includes(v)) out[key] = v; }
+      else if (typeof v === "number" && Number.isFinite(v)) {
+        out[key] = Math.min(lim.max, Math.max(lim.min, roundStep(v, lim.step)));
+      }
+    }
+  }
+  if (out.COLOUR_START_OFFSET < out.COLOUR_FULL_OFFSET + COLOUR_RANGE_MIN_RPM) {
+    out.COLOUR_START_OFFSET = out.COLOUR_FULL_OFFSET + COLOUR_RANGE_MIN_RPM;
+  }
+  return out;
+}
+
+/** Only the editable values (what gets saved). */
+function editableValues(cfg) {
+  const out = {};
+  for (const key of Object.keys(LIMITS)) out[key] = cfg[key];
+  return out;
+}
 
 // Bluetooth details, taken from AirBike.ino
 const FTMS = Object.freeze({
@@ -223,9 +492,6 @@ function readField(dv, offset, type) {
 
 /**
  * Parse one Indoor Bike Data notification.
- * @param {DataView} dv
- * @returns {{ok: true, flags: number, moreData: boolean, resistanceBytes?: number, [k: string]: any} | {ok: false, error: string}}
- *
  * Resistance Level size: the SIG's original field definition (and AirBike.ino, Kinomap,
  * QZ) use sint16 (2 bytes). A later GATT Specification Supplement lists it as uint8.
  * The parser reads 2 bytes unless the packet length only fits the 1-byte version.
@@ -307,23 +573,146 @@ function stepPlayback(state, targetRate, dt, cfg) {
   return { rate, playing: true, stoppingFor: 0 };
 }
 
-globalThis.AirBikeCore = { CONFIG, FTMS, parseIndoorBikeData, effectiveCadence, targetRateForCadence, stepPlayback };
+// ---------------------------------------------------------------------
+// Visual reward
+// ---------------------------------------------------------------------
+
+/**
+ * Zone state with anti-flicker hysteresis. Pure function.
+ * On:  cadence >= TARGET_RPM continuously for ZONE_ENTER_SECONDS.
+ * Off: cadence < TARGET_RPM - ZONE_EXIT_MARGIN_RPM continuously for ZONE_EXIT_SECONDS.
+ * streak = seconds the zone has been held (includes the entry time).
+ */
+function stepZone(z, rpm, dt, cfg) {
+  if (!z.inZone) {
+    const aboveFor = rpm >= cfg.TARGET_RPM ? z.aboveFor + dt : 0;
+    if (aboveFor >= cfg.ZONE_ENTER_SECONDS - 1e-9) return { inZone: true, aboveFor: 0, belowFor: 0, streak: aboveFor };
+    return { inZone: false, aboveFor, belowFor: 0, streak: 0 };
+  }
+  const belowFor = rpm < cfg.TARGET_RPM - cfg.ZONE_EXIT_MARGIN_RPM ? z.belowFor + dt : 0;
+  if (belowFor >= cfg.ZONE_EXIT_SECONDS - 1e-9) return { inZone: false, aboveFor: 0, belowFor: 0, streak: 0 };
+  return { inZone: true, aboveFor: 0, belowFor, streak: z.streak + dt };
+}
+
+const NEW_ZONE = Object.freeze({ inZone: false, aboveFor: 0, belowFor: 0, streak: 0 });
+
+function bonusActive(z, cfg) { return z.inZone && z.streak >= cfg.BONUS_AFTER_SECONDS - 1e-6; }
+
+/** How clear the picture should be (0 = grey/hazy, 1 = full colour). Smooth S-curve across the colour range. */
+function clarityTarget(rpm, inZone, cfg) {
+  if (!cfg.VISUAL_REWARD || inZone) return 1;
+  const full = cfg.TARGET_RPM - cfg.COLOUR_FULL_OFFSET;
+  const start = cfg.TARGET_RPM - cfg.COLOUR_START_OFFSET;
+  if (rpm >= full) return 1;
+  if (rpm <= start) return 0;
+  const x = (rpm - start) / (full - start);
+  return x * x * (3 - 2 * x);
+}
+
+/** Exponential ease toward a target; reaches ~95% in riseSeconds (going up) or fallSeconds (going down). */
+function easeToward(current, target, dt, riseSeconds, fallSeconds) {
+  const seconds = target > current ? riseSeconds : fallSeconds;
+  const next = target + (current - target) * Math.exp(-dt / (Math.max(0.05, seconds) / 3));
+  return Math.abs(next - target) < 0.001 ? target : next;
+}
+
+/**
+ * The look for a clarity (0..1) and glow (0..1) level.
+ * Returns the CSS filter for the picture and the opacities of the haze and warm-glow layers.
+ * blurScale shrinks the blur for small previews.
+ */
+function lookFor(clarity, glow, cfg, blurScale = 1) {
+  const TINY = 0.004;   // changes smaller than this can't be seen; dropping them lets the browser skip the filter
+  let f = cfg.VISUAL_REWARD ? Math.min(1, Math.max(0, 1 - clarity)) : 0;
+  let g = cfg.BONUS_GLOW ? Math.min(1, Math.max(0, glow)) * cfg.GLOW_STRENGTH : 0;
+  if (f < TINY) f = 0;
+  if (g < TINY) g = 0;
+  const parts = [];
+  if (f > 0) {
+    if (cfg.GREY_AMOUNT * f >= TINY) parts.push(`grayscale(${(cfg.GREY_AMOUNT * f).toFixed(3)})`);
+    if (cfg.DIM_AMOUNT * f >= TINY) parts.push(`brightness(${(1 - cfg.DIM_AMOUNT * f).toFixed(3)})`);
+    if (cfg.HAZE_AMOUNT * f >= TINY) parts.push(`contrast(${(1 - 0.35 * cfg.HAZE_AMOUNT * f).toFixed(3)})`);
+    const blur = cfg.SOFTNESS_PX * f * blurScale;
+    if (blur > 0.05) parts.push(`blur(${blur.toFixed(2)}px)`);
+  }
+  if (g > 0) parts.push(`sepia(${(0.3 * g).toFixed(3)}) saturate(${(1 + 0.45 * g).toFixed(3)})`);   // golden-hour warmth
+  return {
+    filter: parts.length ? parts.join(" ") : "none",
+    haze: Number((0.55 * cfg.HAZE_AMOUNT * f).toFixed(3)),
+    glow: Number(g.toFixed(3)),
+  };
+}
+
+globalThis.AirBikeCore = {
+  DEFAULTS, CONFIG, LIMITS, FTMS, sanitizeSettings, editableValues,
+  parseIndoorBikeData, effectiveCadence, targetRateForCadence, stepPlayback,
+  stepZone, NEW_ZONE, bonusActive, clarityTarget, easeToward, lookFor,
+};
 </script>
 
 <!--
   =====================================================================
-  APP: bike connection, video speed control, effects, UI
+  APP: settings, bike connection, video speed control, effects, UI
   =====================================================================
 -->
 <script id="app-script">
 "use strict";
 (() => {
-  const { CONFIG, FTMS, parseIndoorBikeData, effectiveCadence, targetRateForCadence, stepPlayback } = globalThis.AirBikeCore;
+  const {
+    DEFAULTS, LIMITS, FTMS, sanitizeSettings, editableValues,
+    parseIndoorBikeData, effectiveCadence, targetRateForCadence, stepPlayback,
+    stepZone, NEW_ZONE, bonusActive, clarityTarget, easeToward, lookFor,
+  } = globalThis.AirBikeCore;
   const $ = (id) => document.getElementById(id);
 
-  if (CONFIG.PAUSE_BELOW_RATE < CONFIG.BROWSER_MIN_RATE || CONFIG.RESUME_START_RATE < CONFIG.BROWSER_MIN_RATE) {
-    console.warn("PAUSE_BELOW_RATE / RESUME_START_RATE must not be below BROWSER_MIN_RATE");
-  }
+  // -------------------------------------------------------------------
+  // Settings: saved on this device (localStorage), validated on load
+  // -------------------------------------------------------------------
+  const Store = {
+    KEY: "airbike.settings.v1",
+    available: false,
+    timer: null,
+    load() {
+      try {
+        const raw = window.localStorage.getItem(this.KEY);
+        this.available = true;
+        return raw ? JSON.parse(raw) : {};
+      } catch (err) {
+        // SecurityError: storage blocked (or file:// page). SyntaxError: damaged data -> defaults.
+        this.available = err instanceof SyntaxError;
+        console.warn("Settings could not be loaded:", err.name);
+        return {};
+      }
+    },
+    saveSoon() { clearTimeout(this.timer); this.timer = setTimeout(() => this.flush(), 250); },
+    flush() {
+      clearTimeout(this.timer);
+      try {
+        window.localStorage.setItem(this.KEY, JSON.stringify(editableValues(cfg)));
+        this.available = true;
+      } catch (err) {
+        if (this.available) console.warn("Settings could not be saved:", err.name);
+        this.available = false;
+      }
+    },
+  };
+
+  const cfg = sanitizeSettings(Store.load());   // the live settings everything reads
+
+  const Settings = {
+    listeners: [],
+    onChange(fn) { this.listeners.push(fn); },
+    update(patch) {
+      Object.assign(cfg, sanitizeSettings({ ...editableValues(cfg), ...patch }));
+      Store.saveSoon();
+      this.listeners.forEach((fn) => fn());
+    },
+    reset() {
+      Object.assign(cfg, sanitizeSettings({}));
+      Store.flush();
+      this.listeners.forEach((fn) => fn());
+    },
+  };
 
   // -------------------------------------------------------------------
   // UI: messages, status, cadence display
@@ -336,7 +725,7 @@ globalThis.AirBikeCore = { CONFIG, FTMS, parseIndoorBikeData, effectiveCadence, 
       if (!el) {
         el = document.createElement("div");
         el.className = "msg";
-        el.innerHTML = '<div class="text"></div>';
+        el.innerHTML = '<span class="msg-dot"></span><div class="text"></div>';
         if (dismissible) {
           const b = document.createElement("button");
           b.type = "button";
@@ -357,30 +746,33 @@ globalThis.AirBikeCore = { CONFIG, FTMS, parseIndoorBikeData, effectiveCadence, 
     },
 
     setStatus(text, tone) {
-      $("status-text").textContent = text;
+      if ($("status-text").textContent !== text) $("status-text").textContent = text;
       $("status").dataset.tone = tone;
     },
 
     initBar() {
-      const zoneStart = Math.min(1, CONFIG.TARGET_RPM / CONFIG.DISPLAY_MAX_RPM) * 100;
+      const zoneStart = Math.min(1, cfg.TARGET_RPM / cfg.DISPLAY_MAX_RPM) * 100;
       $("bar-zone").style.left = zoneStart + "%";
       $("bar-marker").style.left = zoneStart + "%";
       $("bar-target-label").style.left = zoneStart + "%";
-      $("bar-target-label").textContent = String(CONFIG.TARGET_RPM);
-      $("video").style.objectFit = CONFIG.VIDEO_FIT;
-      $("sim-slider").max = String(CONFIG.SIM_MAX_RPM);
+      $("bar-target-label").textContent = String(cfg.TARGET_RPM);
+      $("video").style.objectFit = cfg.VIDEO_FIT;
+      $("sim-slider").max = String(cfg.SIM_MAX_RPM);
     },
 
     lastShown: {},
-    renderCadence(cad, playback, hasVideo) {
+    barGreen: false,
+    renderCadence(cad, playback, hasVideo, inZone) {
       const rpmText = cad.source === "bike" && cad.stale ? "–" : String(Math.round(cad.rpm));
       if (this.lastShown.rpm !== rpmText) { $("rpm").textContent = rpmText; this.lastShown.rpm = rpmText; }
 
-      const pct = Math.min(1, cad.rpm / CONFIG.DISPLAY_MAX_RPM) * 100;
+      const pct = Math.min(1, cad.rpm / cfg.DISPLAY_MAX_RPM) * 100;
       const fill = $("bar-fill");
       const widthText = pct.toFixed(1) + "%";
       if (this.lastShown.width !== widthText) { fill.style.width = widthText; this.lastShown.width = widthText; }
-      fill.classList.toggle("in-zone", cad.rpm >= CONFIG.TARGET_RPM);
+      // Green at the target; stays green for small (1 RPM) wobbles below it, and while in the zone.
+      this.barGreen = inZone || cad.rpm >= cfg.TARGET_RPM || (this.barGreen && cad.rpm >= cfg.TARGET_RPM - 1);
+      fill.classList.toggle("in-zone", this.barGreen);
 
       let line;
       if (!hasVideo) line = "No video chosen";
@@ -467,7 +859,7 @@ globalThis.AirBikeCore = { CONFIG, FTMS, parseIndoorBikeData, effectiveCadence, 
       this.setState(isRetry ? "reconnecting" : "connecting");
       const device = this.device;
       try {
-        const server = await withTimeout(device.gatt.connect(), CONFIG.CONNECT_TIMEOUT_MS, () => {
+        const server = await withTimeout(device.gatt.connect(), cfg.CONNECT_TIMEOUT_MS, () => {
           try { device.gatt.disconnect(); } catch (_) { /* ignore */ }
         });
         const service = await server.getPrimaryService(FTMS.SERVICE);
@@ -516,7 +908,7 @@ globalThis.AirBikeCore = { CONFIG, FTMS, parseIndoorBikeData, effectiveCadence, 
 
     scheduleReconnect() {
       clearTimeout(this.retryTimer);
-      const delays = CONFIG.RECONNECT_DELAYS_MS;
+      const delays = cfg.RECONNECT_DELAYS_MS;
       const delay = delays[Math.min(this.retryIndex, delays.length - 1)];
       this.retryIndex += 1;
       this.setState("reconnecting");
@@ -572,7 +964,7 @@ globalThis.AirBikeCore = { CONFIG, FTMS, parseIndoorBikeData, effectiveCadence, 
       $("sim-badge").hidden = !this.on;
       $("btn-sim").classList.toggle("sim-on", this.on);
       $("btn-sim").setAttribute("aria-pressed", String(this.on));
-      $("btn-sim").textContent = this.on ? "Simulator: ON" : "Simulator";
+      $("btn-sim").textContent = this.on ? "Simulator on" : "Simulator";
       App.refreshStatus();
     },
     set(v) {
@@ -607,16 +999,16 @@ globalThis.AirBikeCore = { CONFIG, FTMS, parseIndoorBikeData, effectiveCadence, 
       this.hasVideo = true;
       this.state = { rate: 0, playing: false, stoppingFor: 0 };
       this.el.src = this.url;   // loading resets playbackRate to defaultPlaybackRate; tick() re-applies it
-      document.getElementById("app").classList.add("has-video");
+      $("app").classList.add("has-video");
     },
 
     tick(dt, targetRate) {
-      const next = stepPlayback(this.state, targetRate, dt, CONFIG);
+      const next = stepPlayback(this.state, targetRate, dt, cfg);
       this.state = next;
       if (!this.hasVideo || this.el.readyState < 1 /* HAVE_METADATA */ || this.el.error) return;
 
       if (next.playing) {
-        const r = Math.min(CONFIG.BROWSER_MAX_RATE, Math.max(CONFIG.BROWSER_MIN_RATE, next.rate));
+        const r = Math.min(cfg.BROWSER_MAX_RATE, Math.max(cfg.BROWSER_MIN_RATE, next.rate));
         if (Math.abs(this.el.playbackRate - r) > 0.004) {
           try { this.el.playbackRate = r; } catch (e) { console.warn("playbackRate rejected", r, e.name); }
         }
@@ -638,16 +1030,72 @@ globalThis.AirBikeCore = { CONFIG, FTMS, parseIndoorBikeData, effectiveCadence, 
   };
 
   // -------------------------------------------------------------------
-  // Effects layer - placeholder for Step 2 (colour/fog reward, glow, streak badge).
-  // Gets the same per-tick information as the video controller.
+  // Effects layer: fog -> colour, zone ring, streak timer, warm bonus glow.
+  // Everything eases slowly; nothing flashes.
   // -------------------------------------------------------------------
   const Effects = {
-    init() {},
-    update(/* { rpm, inZone, dt, playback } */) {},
+    zone: { ...NEW_ZONE },
+    clarity: 1,
+    glow: 0,
+    bonus: false,
+    preview: { rpm: null, glow: false },   // set by the Settings screen while adjusting
+    glowIsPreview: false,
+    last: { filter: "", haze: -1, glow: -1, streak: "", classes: "" },
+
+    init() { this.clarity = cfg.VISUAL_REWARD ? 0 : 1; },
+
+    update({ rpm, dt }) {
+      this.zone = stepZone(this.zone, rpm, dt, cfg);
+      this.bonus = bonusActive(this.zone, cfg);
+
+      let target, rise = cfg.CLARITY_RISE_SECONDS, fall = cfg.CLARITY_FALL_SECONDS;
+      if (this.preview.rpm != null) { target = clarityTarget(this.preview.rpm, false, cfg); rise = fall = 0.3; }
+      else target = clarityTarget(rpm, this.zone.inZone, cfg);
+      this.clarity = easeToward(this.clarity, target, dt, rise, fall);
+
+      // A glow shown only as a Settings preview appears and disappears quickly; the real reward fades slowly.
+      if (this.preview.glow) this.glowIsPreview = true;
+      if (this.bonus || this.glow === 0) this.glowIsPreview = this.preview.glow;
+      const glowFade = this.glowIsPreview ? 0.6 : cfg.GLOW_FADE_SECONDS;
+      const glowOn = cfg.BONUS_GLOW && (this.preview.glow || this.bonus);
+      this.glow = easeToward(this.glow, glowOn ? 1 : 0, dt, glowFade, glowFade);
+
+      this.apply(lookFor(this.clarity, this.glow, cfg));
+      this.renderZone();
+    },
+
+    apply(look) {
+      const L = this.last;
+      if (look.filter !== L.filter) { $("video").style.filter = look.filter === "none" ? "" : look.filter; L.filter = look.filter; }
+      if (Math.abs(look.haze - L.haze) > 0.002) { $("haze").style.opacity = String(look.haze); L.haze = look.haze; }
+      if (Math.abs(look.glow - L.glow) > 0.002) {
+        $("glow").style.opacity = String(look.glow);
+        $("glow-edge").style.opacity = String(look.glow);
+        L.glow = look.glow;
+      }
+    },
+
+    renderZone() {
+      const z = this.zone;
+      const classes = (z.inZone ? "zone" : "") + (this.bonus ? " bonus" : "");
+      if (classes !== this.last.classes) {
+        $("cadence").classList.toggle("zone", z.inZone && !this.bonus);
+        $("cadence").classList.toggle("bonus", this.bonus);
+        $("streak").classList.toggle("bonus", this.bonus);
+        this.last.classes = classes;
+      }
+      const showStreak = cfg.SHOW_STREAK && z.inZone;
+      $("streak").classList.toggle("show", showStreak);
+      if (z.inZone) {
+        const s = Math.floor(z.streak);
+        const text = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+        if (text !== this.last.streak) { $("streak-time").textContent = text; this.last.streak = text; }
+      }
+    },
   };
 
   // (Step 3) Audio module will go here, fed from the same tick.
-  // (Step 4) Session history and caregiver settings will read/write CONFIG-like values.
+  // (Step 4) Session history will read the same zone/streak state.
 
   // -------------------------------------------------------------------
   // Screen Wake Lock (with graceful fallback)
@@ -701,7 +1149,7 @@ globalThis.AirBikeCore = { CONFIG, FTMS, parseIndoorBikeData, effectiveCadence, 
       if (document.fullscreenElement) {
         document.exitFullscreen().catch(() => {});
       } else {
-        // Whole page, so the cadence display stays on top of the video.
+        // Whole page, so the cadence display (and the Settings sheet) stay on top of the video.
         document.documentElement.requestFullscreen().catch((err) => {
           UI.showMessage("fs", "Fullscreen isn't available here (" + err.name + ").", "info");
         });
@@ -724,8 +1172,526 @@ globalThis.AirBikeCore = { CONFIG, FTMS, parseIndoorBikeData, effectiveCadence, 
       clearTimeout(this.timer);
       this.timer = setTimeout(() => {
         const riding = VideoController.hasVideo && (Bike.state === "connected" || Sim.on);
-        if (riding) $("app").classList.add("controls-hidden");
-      }, CONFIG.CONTROLS_HIDE_MS);
+        if (riding && !SettingsSheet.isOpen) $("app").classList.add("controls-hidden");
+      }, cfg.CONTROLS_HIDE_MS);
+    },
+  };
+
+  // ===================================================================
+  // SETTINGS SHEET
+  // Pages and rows are described once (PAGES) and built from that list.
+  // Changes apply immediately and are saved automatically.
+  // ===================================================================
+  const ICONS = {
+    gauge: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4.6 17.5a8.5 8.5 0 1 1 14.8 0"/><path d="M12 14.5l3.8-4.6"/><circle cx="12" cy="14.5" r="1.4" fill="currentColor"/></svg>',
+    contrast: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.8" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 4.2a7.8 7.8 0 0 1 0 15.6z" fill="currentColor"/></svg>',
+    sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2.6v2.1M12 19.3v2.1M2.6 12h2.1M19.3 12h2.1M5.4 5.4l1.5 1.5M17.1 17.1l1.5 1.5M5.4 18.6l1.5-1.5M17.1 6.9l1.5-1.5"/></svg>',
+    timer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="13.5" r="7.4"/><path d="M12 13.5V9.6M9.6 2.9h4.8"/></svg>',
+    more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="6" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="18" cy="12" r="2"/></svg>',
+    chevronRight: '<svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 1.5L6.5 7l-5 5.5"/></svg>',
+    chevronLeft: '<svg viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2L2.5 10 10 18"/></svg>',
+    minus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5.5 12h13"/></svg>',
+    plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5.5v13M5.5 12h13"/></svg>',
+  };
+
+  // An original, colourful landscape used to preview the look.
+  let previewCount = 0;
+  function landscapeSVG() {
+    const id = "pv" + (++previewCount);
+    return `<svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <linearGradient id="${id}s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f7fe0"/><stop offset=".55" stop-color="#8fd3f5"/><stop offset="1" stop-color="#ffe2a0"/></linearGradient>
+        <linearGradient id="${id}f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5ccf5c"/><stop offset="1" stop-color="#1f7a35"/></linearGradient>
+      </defs>
+      <rect width="320" height="180" fill="url(#${id}s)"/>
+      <circle cx="238" cy="58" r="17" fill="#ffd84a"/>
+      <path d="M0 112 L48 74 L86 96 L138 56 L192 102 L240 78 L320 108 V180 H0Z" fill="#5b5fd6"/>
+      <path d="M138 56 L152 67 L144 70 L132 61Z M48 74 L58 82 L44 84Z" fill="#eef2ff"/>
+      <path d="M0 124 L66 98 L126 120 L186 94 L258 120 L320 104 V180 H0Z" fill="#139e8e"/>
+      <path d="M0 134 Q160 116 320 136 V180 H0Z" fill="url(#${id}f)"/>
+      <path d="M150 128 L170 128 L236 180 H84Z" fill="#4b5563"/>
+      <path d="M160 134v5M160 145v8M160 161v12" stroke="#f8fafc" stroke-width="2.4" stroke-linecap="round"/>
+      <g fill="#e11d48"><circle cx="34" cy="152" r="3"/><circle cx="52" cy="164" r="3.4"/><circle cx="272" cy="150" r="3"/><circle cx="292" cy="166" r="3.6"/></g>
+      <g fill="#f59e0b"><circle cx="70" cy="148" r="2.6"/><circle cx="256" cy="162" r="2.8"/><circle cx="20" cy="170" r="3"/></g>
+      <g fill="#14532d"><path d="M100 132 l7 -20 l7 20Z"/><path d="M226 134 l8 -24 l8 24Z"/><path d="M244 136 l6 -16 l6 16Z"/></g>
+    </svg>`;
+  }
+
+  const fmtRpm = (v) => `${Math.round(v)} RPM`;
+  const fmtSec = (v) => `${Number(v.toFixed(2))} s`;
+  const fmtClock = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+  const fmtPct = (v) => `${Math.round(v * 100)}%`;
+  const visualOn = (c) => c.VISUAL_REWARD;
+  const glowOn = (c) => c.BONUS_GLOW;
+
+  const PAGES = {
+    main: {
+      title: "Settings",
+      groups: [
+        { icons: true, rows: [
+          { type: "link", page: "ride", icon: "gauge", tint: "var(--blue)", label: "Ride", value: (c) => fmtRpm(c.TARGET_RPM) },
+          { type: "link", page: "visual", icon: "contrast", tint: "var(--indigo)", label: "Visual reward", value: (c) => (c.VISUAL_REWARD ? "On" : "Off") },
+          { type: "link", page: "bonus", icon: "sun", tint: "var(--orange)", label: "Bonus glow", value: (c) => (c.BONUS_GLOW ? `After ${fmtClock(c.BONUS_AFTER_SECONDS)}` : "Off") },
+          { type: "link", page: "zone", icon: "timer", tint: "var(--green)", label: "Zone timing", value: (c) => `${c.ZONE_ENTER_SECONDS} s in, ${c.ZONE_EXIT_SECONDS} s out` },
+        ] },
+        { icons: true, rows: [
+          { type: "link", page: "advanced", icon: "more", tint: "var(--gray)", label: "Advanced" },
+        ] },
+        { rows: [{ type: "reset" }],
+          footer: () => (Store.available
+            ? "Settings are saved on this device and used every time the app opens here."
+            : "This browser isn't letting the app save settings, so they'll go back to the defaults when the page reloads.") },
+      ],
+    },
+
+    ride: {
+      title: "Ride",
+      groups: [
+        { rows: [{ type: "stepper", key: "TARGET_RPM", label: "Target cadence", format: fmtRpm }],
+          footer: (c) => `The video plays at normal speed at ${c.TARGET_RPM} RPM or more, and slows down below that.` },
+        { rows: [{ type: "slider", key: "MIN_PLAYBACK_RATE", label: "Slowest video speed", format: (v) => `${v.toFixed(2)}×` }],
+          footer: "While pedalling slowly, the video never plays slower than this. It pauses when pedalling stops." },
+        { header: "Picture", rows: [{ type: "segmented", key: "VIDEO_FIT", label: "Picture", options: [["cover", "Fill screen"], ["contain", "Whole video"]] }],
+          footer: "Fill screen may crop the edges of the video." },
+      ],
+    },
+
+    visual: {
+      title: "Visual reward",
+      onEnter() { Effects.preview.rpm = null; },
+      onLeave() { Effects.preview.rpm = null; },
+      groups: [
+        { rows: [
+          { type: "preview", mode: "clarity" },
+          { type: "slider", id: "PREVIEW_RPM", label: "Preview cadence", min: 0, max: 110, step: 1, format: fmtRpm,
+            get: () => SettingsSheet.previewRpm,
+            onInput: (v) => { SettingsSheet.previewRpm = v; Effects.preview.rpm = v; } },
+        ], footer: "Drag to see the look at different cadences. The video behind this panel follows while you drag." },
+        { rows: [{ type: "toggle", key: "VISUAL_REWARD", label: "Visual reward" }],
+          footer: "The picture turns grey and hazy when pedalling is slow, and clears to full colour as cadence rises." },
+        { header: "Colour range", rows: [
+          { type: "stepper", id: "COLOUR_START", label: "Colour starts returning", step: 1, format: fmtRpm, enabled: visualOn,
+            get: (c) => c.TARGET_RPM - c.COLOUR_START_OFFSET,
+            set: (c, v) => ({ COLOUR_START_OFFSET: c.TARGET_RPM - v }),
+            min: (c) => c.TARGET_RPM - LIMITS.COLOUR_START_OFFSET.max,
+            max: (c) => c.TARGET_RPM - c.COLOUR_FULL_OFFSET - 5 },
+          { type: "stepper", id: "COLOUR_FULL", label: "Full colour at", step: 1, format: fmtRpm, enabled: visualOn,
+            get: (c) => c.TARGET_RPM - c.COLOUR_FULL_OFFSET,
+            set: (c, v) => ({ COLOUR_FULL_OFFSET: c.TARGET_RPM - v }),
+            min: (c) => Math.max(c.TARGET_RPM - LIMITS.COLOUR_FULL_OFFSET.max, c.TARGET_RPM - c.COLOUR_START_OFFSET + 5),
+            max: (c) => c.TARGET_RPM },
+        ], footer: (c) => `Below ${c.TARGET_RPM - c.COLOUR_START_OFFSET} RPM the picture stays at its greyest. Once in the zone it stays in full colour until cadence really drops.` },
+        { header: "When pedalling slowly", rows: [
+          { type: "slider", key: "GREY_AMOUNT", label: "Colour loss", format: fmtPct, enabled: visualOn },
+          { type: "slider", key: "DIM_AMOUNT", label: "Dimming", format: fmtPct, enabled: visualOn },
+          { type: "slider", key: "HAZE_AMOUNT", label: "Haze", format: fmtPct, enabled: visualOn },
+          { type: "slider", key: "SOFTNESS_PX", label: "Softness", format: (v) => (v === 0 ? "Off" : `${v} px`), enabled: visualOn },
+        ], footer: "Softness gently blurs the picture. Turn it down if the video stutters on this device." },
+      ],
+    },
+
+    bonus: {
+      title: "Bonus glow",
+      onEnter() { Effects.preview.glow = true; },
+      onLeave() { Effects.preview.glow = false; },
+      groups: [
+        { rows: [{ type: "preview", mode: "glow" }],
+          footer: "While this page is open, the video behind shows the glow at the chosen strength." },
+        { rows: [
+          { type: "toggle", key: "BONUS_GLOW", label: "Warm glow" },
+          { type: "stepper", key: "BONUS_AFTER_SECONDS", label: "Glow after", format: (v) => `${fmtClock(v)} min`, enabled: glowOn },
+          { type: "slider", key: "GLOW_STRENGTH", label: "Glow strength", format: fmtPct, enabled: glowOn },
+        ], footer: (c) => `After ${fmtClock(c.BONUS_AFTER_SECONDS)} in the zone, a warm glow slowly fades in. It fades out if cadence drops out of the zone.` },
+        { rows: [{ type: "toggle", key: "SHOW_STREAK", label: "Zone timer" }],
+          footer: "Shows how long the zone has been held, just above the cadence." },
+      ],
+    },
+
+    zone: {
+      title: "Zone timing",
+      groups: [
+        { header: "Entering the zone", rows: [
+          { type: "stepper", key: "ZONE_ENTER_SECONDS", label: "Hold the target for", format: fmtSec },
+        ], footer: (c) => `The zone starts after ${c.ZONE_ENTER_SECONDS} s at ${c.TARGET_RPM} RPM or more.` },
+        { header: "Leaving the zone", rows: [
+          { type: "stepper", id: "ZONE_EXIT_RPM", label: "Drops below", step: 1, format: fmtRpm,
+            get: (c) => c.TARGET_RPM - c.ZONE_EXIT_MARGIN_RPM,
+            set: (c, v) => ({ ZONE_EXIT_MARGIN_RPM: c.TARGET_RPM - v }),
+            min: (c) => c.TARGET_RPM - LIMITS.ZONE_EXIT_MARGIN_RPM.max,
+            max: (c) => c.TARGET_RPM - LIMITS.ZONE_EXIT_MARGIN_RPM.min },
+          { type: "stepper", key: "ZONE_EXIT_SECONDS", label: "For longer than", format: fmtSec },
+        ], footer: (c) => `The zone ends after ${c.ZONE_EXIT_SECONDS} s below ${c.TARGET_RPM - c.ZONE_EXIT_MARGIN_RPM} RPM. These delays stop the reward switching on and off when cadence hovers around the target.` },
+      ],
+    },
+
+    advanced: {
+      title: "Advanced",
+      groups: [
+        { header: "Video", rows: [
+          { type: "stepper", key: "SPEED_EASE_SECONDS", label: "Speed changes over", format: fmtSec },
+          { type: "stepper", key: "STOP_EASE_SECONDS", label: "Pause within", format: fmtSec },
+          { type: "stepper", key: "DATA_TIMEOUT_MS", label: "No data means stopped after", format: (v) => fmtSec(v / 1000) },
+        ], footer: "How smoothly the video changes speed, and how quickly it pauses when pedalling stops or the bike stops sending data." },
+        { header: "Reward fades", rows: [
+          { type: "stepper", key: "CLARITY_RISE_SECONDS", label: "Colour returns over", format: fmtSec },
+          { type: "stepper", key: "CLARITY_FALL_SECONDS", label: "Colour fades over", format: fmtSec },
+          { type: "stepper", key: "GLOW_FADE_SECONDS", label: "Glow fades over", format: fmtSec },
+        ], footer: "Slower fades are calmer. Nothing on screen ever flashes." },
+        { header: "Screen", rows: [
+          { type: "stepper", key: "CONTROLS_HIDE_MS", label: "Hide buttons after", format: (v) => fmtSec(v / 1000) },
+        ] },
+      ],
+    },
+  };
+
+  // ---------- small DOM helper ----------
+  function h(tag, attrs = {}, children = []) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v == null || v === false) continue;
+      if (k === "class") e.className = v;
+      else if (k === "html") e.innerHTML = v;
+      else if (k === "text") e.textContent = v;
+      else e.setAttribute(k, v === true ? "" : String(v));
+    }
+    for (const c of [].concat(children)) if (c) e.append(c);
+    return e;
+  }
+  const resolve = (x, c) => (typeof x === "function" ? x(c) : x);
+  const getter = (def) => def.get || ((c) => c[def.key]);
+  const setter = (def) => def.set || ((c, v) => ({ [def.key]: v }));
+  function limitsFor(def, c) {
+    const lim = def.key ? LIMITS[def.key] : {};
+    return { min: resolve(def.min ?? lim.min, c), max: resolve(def.max ?? lim.max, c), step: def.step ?? lim.step };
+  }
+  function setEnabled(row, def) {
+    const on = def.enabled ? !!def.enabled(cfg) : true;
+    row.classList.toggle("disabled", !on);
+    row.inert = !on;
+  }
+
+  // Press-and-hold repeats, like a native stepper.
+  function holdToRepeat(btn, fn) {
+    let t1 = null, t2 = null;
+    const stop = () => { clearTimeout(t1); clearInterval(t2); };
+    btn.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0 || btn.disabled) return;
+      fn(); stop();
+      t1 = setTimeout(() => { t2 = setInterval(() => { if (btn.disabled) stop(); else fn(); }, 90); }, 450);
+    });
+    ["pointerup", "pointerleave", "pointercancel", "blur"].forEach((ev) => btn.addEventListener(ev, stop));
+    btn.addEventListener("click", (e) => { if (e.detail === 0) fn(); });   // keyboard Enter/Space
+  }
+
+  // ---------- row builders: each returns { el, update } ----------
+  const Rows = {
+    link(def) {
+      const value = h("span", { class: "cell-value" });
+      const el = h("button", { type: "button", class: "cell link", "data-link": def.page }, [
+        h("span", { class: "tile", style: `background:${def.tint}`, html: ICONS[def.icon] }),
+        h("span", { class: "cell-label", text: def.label }), value,
+      ]);
+      el.insertAdjacentHTML("beforeend", ICONS.chevronRight);
+      el.addEventListener("click", () => SettingsSheet.push(def.page, el));
+      return { el, update() { value.textContent = def.value ? def.value(cfg) : ""; } };
+    },
+
+    toggle(def) {
+      const input = h("input", { type: "checkbox", role: "switch", class: "switch" });
+      const el = h("label", { class: "cell", "data-row": def.key }, [h("span", { class: "cell-label", text: def.label }), input]);
+      input.addEventListener("change", () => Settings.update({ [def.key]: input.checked }));
+      return { el, update() { input.checked = !!cfg[def.key]; setEnabled(el, def); } };
+    },
+
+    stepper(def) {
+      const value = h("span", { class: "cell-value", "aria-live": "polite" });
+      const dec = h("button", { type: "button", class: "step-btn", "aria-label": `Decrease ${def.label}`, html: ICONS.minus });
+      const inc = h("button", { type: "button", class: "step-btn", "aria-label": `Increase ${def.label}`, html: ICONS.plus });
+      const el = h("div", { class: "cell", role: "group", "aria-label": def.label, "data-row": def.id || def.key }, [
+        h("span", { class: "cell-label", text: def.label }), value,
+        h("div", { class: "stepper" }, [dec, h("span", { class: "sep" }), inc]),
+      ]);
+      const change = (dir) => {
+        const lim = limitsFor(def, cfg);
+        const cur = getter(def)(cfg);
+        const next = Math.min(lim.max, Math.max(lim.min, Number((cur + dir * lim.step).toFixed(6))));
+        if (next !== cur) Settings.update(setter(def)(cfg, next));
+      };
+      holdToRepeat(dec, () => change(-1));
+      holdToRepeat(inc, () => change(+1));
+      return {
+        el,
+        update() {
+          const lim = limitsFor(def, cfg), v = getter(def)(cfg);
+          value.textContent = def.format ? def.format(v, cfg) : String(v);
+          dec.disabled = v <= lim.min + 1e-9;
+          inc.disabled = v >= lim.max - 1e-9;
+          setEnabled(el, def);
+        },
+      };
+    },
+
+    slider(def) {
+      const lim = limitsFor(def, cfg);
+      const value = h("span", { class: "cell-value" });
+      const input = h("input", { type: "range", class: "range", min: lim.min, max: lim.max, step: lim.step, "aria-label": def.label });
+      const el = h("div", { class: "cell slider-cell", "data-row": def.id || def.key }, [
+        h("div", { class: "slider-top" }, [h("span", { class: "cell-label", text: def.label }), value]), input,
+      ]);
+      const paint = (v) => {
+        const p = (v - lim.min) / (lim.max - lim.min);
+        input.style.setProperty("--p", `calc(${p.toFixed(4)} * (100% - 28px) + 14px)`);
+        const text = def.format ? def.format(v) : String(v);
+        value.textContent = text;
+        input.setAttribute("aria-valuetext", text);
+      };
+      input.addEventListener("input", () => {
+        const v = Number(input.value);
+        if (def.onInput) { def.onInput(v); SettingsSheet.refreshPreviews(); } else Settings.update(setter(def)(cfg, v));
+        paint(v);
+      });
+      return { el, update() { const v = getter(def)(cfg); input.value = String(v); paint(v); setEnabled(el, def); } };
+    },
+
+    segmented(def) {
+      const thumb = h("span", { class: "seg-thumb" });
+      const group = h("div", { class: "segmented", role: "radiogroup", "aria-label": def.label }, [thumb]);
+      group.style.setProperty("--n", def.options.length);
+      const buttons = def.options.map(([val, text]) => {
+        const b = h("button", { type: "button", role: "radio", "data-value": val, text });
+        b.addEventListener("click", () => Settings.update({ [def.key]: val }));
+        b.addEventListener("keydown", (e) => {
+          if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+          const i = def.options.findIndex((o) => o[0] === cfg[def.key]);
+          const n = (i + (e.key === "ArrowRight" ? 1 : -1) + def.options.length) % def.options.length;
+          Settings.update({ [def.key]: def.options[n][0] });
+          buttons[n].focus();
+          e.preventDefault();
+        });
+        group.append(b);
+        return b;
+      });
+      const el = h("div", { class: "cell seg-cell", "data-row": def.key }, [group]);
+      return {
+        el,
+        update() {
+          const i = Math.max(0, def.options.findIndex((o) => o[0] === cfg[def.key]));
+          group.style.setProperty("--i", i);
+          buttons.forEach((b, j) => { b.setAttribute("aria-checked", String(j === i)); b.tabIndex = j === i ? 0 : -1; });
+        },
+      };
+    },
+
+    preview(def) {
+      const box = h("div", { class: "preview", "data-preview": def.mode, html: landscapeSVG() });
+      const haze = h("div", { class: "pv-haze" }), glow = h("div", { class: "pv-glow" }), edge = h("div", { class: "pv-glow-edge" });
+      const caption = h("div", { class: "preview-caption" });
+      box.append(haze, glow, edge, caption);
+      const svg = box.querySelector("svg");
+      const el = h("div", { class: "cell preview-cell" }, [box]);
+      return {
+        el,
+        update() {
+          let look, text;
+          if (def.mode === "clarity") {
+            const r = SettingsSheet.previewRpm;
+            const c = clarityTarget(r, false, cfg);
+            look = lookFor(c, 0, cfg, 0.35);
+            text = !cfg.VISUAL_REWARD ? "Visual reward is off"
+              : c >= 0.999 ? `Full colour at ${r} RPM`
+              : c <= 0.001 ? `Grey and hazy at ${r} RPM`
+              : `Colour returning at ${r} RPM`;
+          } else {
+            look = lookFor(1, 1, cfg, 0.35);
+            text = cfg.BONUS_GLOW ? `After ${fmtClock(cfg.BONUS_AFTER_SECONDS)} in the zone` : "Bonus glow is off";
+          }
+          svg.style.filter = look.filter === "none" ? "" : look.filter;
+          haze.style.opacity = String(look.haze);
+          glow.style.opacity = String(look.glow);
+          edge.style.opacity = String(look.glow);
+          caption.textContent = text;
+        },
+      };
+    },
+
+    reset() {
+      const el = h("button", { type: "button", class: "cell destructive", "data-row": "RESET", text: "Reset all settings" });
+      let armed = false, timer = null;
+      const disarm = () => { armed = false; el.textContent = "Reset all settings"; };
+      el.addEventListener("click", () => {
+        if (!armed) {
+          armed = true;
+          el.textContent = "Tap again to reset everything";
+          clearTimeout(timer);
+          timer = setTimeout(disarm, 4000);
+          return;
+        }
+        clearTimeout(timer);
+        disarm();
+        Settings.reset();
+        SettingsSheet.previewRpm = cfg.TARGET_RPM - 10;
+      });
+      return { el, update() {} };
+    },
+  };
+
+  const SettingsSheet = {
+    el: null,
+    pages: {},
+    stack: [],
+    rows: [],
+    footers: [],
+    previews: [],
+    isOpen: false,
+    previewRpm: DEFAULTS.TARGET_RPM - 10,
+    openers: [],
+    downOnBackdrop: false,
+    closeTimer: null,
+
+    init() {
+      this.el = $("settings");
+      this.previewRpm = cfg.TARGET_RPM - 10;
+      const host = $("settings-pages");
+      for (const [id, page] of Object.entries(PAGES)) host.append(this.buildPage(id, page));
+      this.showOnly("main");
+      Settings.onChange(() => this.refresh());
+
+      $("btn-settings").addEventListener("click", () => this.open());
+      this.el.addEventListener("cancel", (e) => { e.preventDefault(); this.close(); });   // Esc
+      this.el.addEventListener("close", () => {
+        if (this.isOpen) { this.el.classList.remove("open"); this.finishClose(); }   // closed some other way
+        $("btn-settings").focus({ preventScroll: true });
+      });
+      // Click outside the panel closes it (only if the press also started outside).
+      this.el.addEventListener("pointerdown", (e) => { this.downOnBackdrop = e.target === this.el; });
+      this.el.addEventListener("click", (e) => { if (e.target === this.el && this.downOnBackdrop) this.close(); });
+    },
+
+    buildPage(id, page) {
+      const isMain = id === "main";
+      const scroll = h("div", { class: "page-scroll" });
+      const nav = h("header", { class: "navbar" });
+      if (!isMain) {
+        const back = h("button", { type: "button", class: "nav-btn nav-back", html: ICONS.chevronLeft });
+        back.append("Settings");
+        back.addEventListener("click", () => this.pop());
+        nav.append(back);
+      } else {
+        nav.append(h("span"));
+      }
+      nav.append(h("h2", { class: "nav-title", text: page.title }));
+      const done = h("button", { type: "button", class: "nav-btn nav-done", "data-action": "done", text: "Done" });
+      done.addEventListener("click", () => this.close());
+      nav.append(done);
+
+      if (isMain) scroll.append(h("h1", { class: "large-title", text: "Settings" }));
+      for (const group of page.groups) {
+        const body = h("div", { class: "group-body" + (group.icons ? " has-icons" : "") });
+        const g = h("section", { class: "group" });
+        if (group.header) g.append(h("h3", { class: "group-header", text: group.header }));
+        g.append(body);
+        for (const def of group.rows) {
+          const row = Rows[def.type](def);
+          body.append(row.el);
+          this.rows.push(row);
+          if (def.type === "preview") this.previews.push(row);
+        }
+        if (group.footer) {
+          const f = h("p", { class: "group-footer" });
+          g.append(f);
+          this.footers.push({ el: f, text: group.footer });
+        }
+        scroll.append(g);
+      }
+      const el = h("section", { class: "page", "data-page": id }, [nav, scroll]);
+      scroll.addEventListener("scroll", () => el.classList.toggle("scrolled", scroll.scrollTop > 24), { passive: true });
+      this.pages[id] = { el, scroll, def: page };
+      return el;
+    },
+
+    refresh() {
+      this.rows.forEach((r) => r.update());
+      this.footers.forEach((f) => { f.el.textContent = resolve(f.text, cfg); });
+    },
+    refreshPreviews() { this.previews.forEach((p) => p.update()); },
+
+    showOnly(id) {
+      for (const [pid, p] of Object.entries(this.pages)) {
+        p.el.style.transition = "none";
+        p.el.className = "page" + (pid === id ? " current" : "");
+        p.el.inert = pid !== id;
+        void p.el.offsetWidth;
+        p.el.style.transition = "";
+      }
+      this.stack = [id];
+    },
+
+    top() { return this.pages[this.stack[this.stack.length - 1]]; },
+
+    push(id, opener) {
+      const from = this.top(), to = this.pages[id];
+      if (!to || from === to) return;
+      this.openers.push(opener);
+      to.scroll.scrollTop = 0;
+      to.el.classList.remove("scrolled");
+      to.el.style.transition = "none";
+      to.el.className = "page";
+      void to.el.offsetWidth;
+      to.el.style.transition = "";
+      from.el.className = "page off-left";
+      from.el.inert = true;
+      to.el.className = "page current";
+      to.el.inert = false;
+      if (from.def.onLeave) from.def.onLeave();
+      this.stack.push(id);
+      if (to.def.onEnter) to.def.onEnter();
+      this.refresh();
+      to.el.querySelector(".nav-back").focus({ preventScroll: true });
+    },
+
+    pop() {
+      if (this.stack.length < 2) return;
+      const from = this.top();
+      this.stack.pop();
+      const to = this.top();
+      if (from.def.onLeave) from.def.onLeave();
+      from.el.className = "page";
+      from.el.inert = true;
+      to.el.className = "page current";
+      to.el.inert = false;
+      if (to.def.onEnter) to.def.onEnter();
+      const opener = this.openers.pop();
+      if (opener) opener.focus({ preventScroll: true });
+    },
+
+    open() {
+      if (this.isOpen) return;
+      clearTimeout(this.closeTimer);
+      this.isOpen = true;
+      this.showOnly("main");
+      this.openers = [];
+      this.refresh();
+      if (!this.el.open) this.el.showModal();
+      requestAnimationFrame(() => requestAnimationFrame(() => this.el.classList.add("open")));
+      Controls.show();
+    },
+
+    close() {
+      if (!this.isOpen) return;
+      this.el.classList.remove("open");
+      this.finishClose();
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      this.closeTimer = setTimeout(() => { if (this.el.open) this.el.close(); }, reduce ? 20 : 480);
+    },
+
+    finishClose() {
+      this.isOpen = false;
+      const top = this.top();
+      if (top && top.def.onLeave) top.def.onLeave();
+      Effects.preview.rpm = null;
+      Effects.preview.glow = false;
+      Store.flush();
+      Controls.show();
     },
   };
 
@@ -758,16 +1724,21 @@ globalThis.AirBikeCore = { CONFIG, FTMS, parseIndoorBikeData, effectiveCadence, 
       reBtn.classList.toggle("primary", !!Bike.device && s === "idle");
     },
 
-    renderStatus(cad) {
+    renderStatus() {
       if (!Bike.supported()) return;
       const s = Bike.state;
       if (s === "requesting") UI.setStatus("Choose “AirBike” in the list…", "warn");
       else if (s === "connecting") UI.setStatus("Connecting…", "warn");
       else if (s === "reconnecting") UI.setStatus("Reconnecting…", "warn");
       else if (s === "connected") {
-        const fresh = Bike.lastCadenceAt != null && performance.now() - Bike.lastCadenceAt <= CONFIG.DATA_TIMEOUT_MS;
+        const fresh = Bike.lastCadenceAt != null && performance.now() - Bike.lastCadenceAt <= cfg.DATA_TIMEOUT_MS;
         UI.setStatus(fresh ? "Bike connected" : "Bike connected · no data", fresh ? "ok" : "warn");
       } else UI.setStatus("Bike not connected", "idle");
+    },
+
+    applySettings() {
+      UI.initBar();
+      Controls.show();
     },
 
     lastTick: performance.now(),
@@ -778,12 +1749,12 @@ globalThis.AirBikeCore = { CONFIG, FTMS, parseIndoorBikeData, effectiveCadence, 
       const cad = effectiveCadence({
         simulatorOn: Sim.on, simulatorRpm: Sim.rpm,
         bikeRpm: Bike.lastCadence, bikeRpmAt: Bike.lastCadenceAt, now,
-      }, CONFIG);
-      const target = targetRateForCadence(cad.rpm, CONFIG);
+      }, cfg);
+      const target = targetRateForCadence(cad.rpm, cfg);
       VideoController.tick(dt, target);
-      Effects.update({ rpm: cad.rpm, inZone: cad.rpm >= CONFIG.TARGET_RPM, dt, playback: VideoController.state });
-      UI.renderCadence(cad, VideoController.state, VideoController.hasVideo);
-      App.renderStatus(cad);
+      Effects.update({ rpm: cad.rpm, dt });
+      UI.renderCadence(cad, VideoController.state, VideoController.hasVideo, Effects.zone.inZone);
+      App.renderStatus();
     },
 
     init() {
@@ -793,13 +1764,15 @@ globalThis.AirBikeCore = { CONFIG, FTMS, parseIndoorBikeData, effectiveCadence, 
       Wake.init();
       Fullscreen.init();
       Controls.init();
+      SettingsSheet.init();
+      Settings.onChange(() => App.applySettings());
 
       Bike.onChange = () => {
         App.refreshStatus();
         if (Bike.state !== "connected") Controls.show();   // bring the buttons back if the bike drops
       };
       // Keep messages just below the toolbar, however many rows it wraps to.
-      const placeMessages = () => { $("messages").style.top = ($("topbar").offsetHeight + 8) + "px"; };
+      const placeMessages = () => { $("messages").style.top = ($("topbar").offsetHeight + 4) + "px"; };
       if ("ResizeObserver" in window) new ResizeObserver(placeMessages).observe($("topbar"));
       placeMessages();
       if (!Bike.supported()) App.showUnsupported();
@@ -817,12 +1790,13 @@ globalThis.AirBikeCore = { CONFIG, FTMS, parseIndoorBikeData, effectiveCadence, 
       $("btn-sim").addEventListener("click", () => { Wake.request(); Sim.toggle(); });
       $("sim-slider").addEventListener("input", (e) => Sim.set(e.target.value));
       Sim.set($("sim-slider").value);
+      window.addEventListener("pagehide", () => Store.flush());
 
-      setInterval(App.tick, CONFIG.CONTROL_TICK_MS);
+      setInterval(App.tick, cfg.CONTROL_TICK_MS);
     },
   };
 
-  window.AirBikeApp = { Bike, Sim, VideoController, UI, App };   // for debugging in DevTools
+  window.AirBikeApp = { Bike, Sim, VideoController, UI, App, Effects, Settings, SettingsSheet, Store, cfg };   // for debugging in DevTools
   App.init();
 })();
 </script>
