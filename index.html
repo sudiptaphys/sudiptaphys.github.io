@@ -279,6 +279,12 @@
     font-size: clamp(16px, 2.4vh, 21px); color: var(--label2); }
   #stats-hint.paused { color: var(--orange); }
 
+  #btn-sound .snd-off { display: none; }
+  #btn-sound[aria-pressed="true"] .snd-on { display: none; }
+  #btn-sound[aria-pressed="true"] .snd-off { display: block; }
+  #app #btn-sound[aria-pressed="true"] { background: var(--red); box-shadow: none; }
+  .info-value { color: var(--label2); text-align: right; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
   /* ================= settings: action + history rows ================= */
   .cell.action { color: var(--blue); cursor: pointer; }
   .cell.action:active { background: rgba(255, 255, 255, 0.07); }
@@ -388,6 +394,7 @@
 <div id="app">
   <div id="stage">
     <video id="video" muted playsinline loop preload="auto" disablepictureinpicture></video>
+    <audio id="music" preload="auto"></audio>
     <div id="haze" class="overlay"></div>
     <div id="glow" class="overlay"></div>
     <div id="glow-edge" class="overlay"></div>
@@ -409,6 +416,11 @@
     <button id="btn-pause" type="button" hidden>Pause</button>
     <button id="btn-finish" type="button" hidden>Finish</button>
     <button id="btn-video" type="button">Choose video</button>
+    <button id="btn-music" type="button" hidden>Choose music</button>
+    <button id="btn-sound" class="icon-btn" type="button" aria-label="Mute sound" aria-pressed="false" title="Mute sound" hidden>
+      <svg class="snd-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>
+      <svg class="snd-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>
+    </button>
     <button id="btn-sim" type="button" aria-pressed="false">Simulator</button>
     <button id="btn-fullscreen" type="button">Fullscreen</button>
     <button id="btn-settings" class="icon-btn" type="button" aria-label="Settings" title="Settings">
@@ -538,6 +550,16 @@ const DEFAULTS = Object.freeze({
   SUM_RECENT: true,
   SUM_NEXT_GOAL: true,
 
+  // Sound (editable)
+  SOUND_SOURCE: "off",         // "off" | "video" (the video's own sound) | "music" (your own music files)
+  SOUND_MAX_VOLUME: 0.8,       // volume at and above the target cadence (0..1)
+  SOUND_MIN_VOLUME: 0,         // volume when pedalling slowly or stopped (0 = silent)
+  SOUND_START_OFFSET: 15,      // sound starts rising at TARGET_RPM - this (55 RPM)
+  SOUND_FULL_OFFSET: 0,        // full volume at TARGET_RPM - this (70 RPM)
+  SOUND_PRESERVE_PITCH: true,  // video sound keeps its natural pitch when the video slows down
+  SOUND_RISE_SECONDS: 1.5,     // volume rises over about this long
+  SOUND_FALL_SECONDS: 2.5,     // volume falls over about this long
+
   // Fixed (not shown in Settings)
   KMH_AT_60_RPM: 20,           // = TARGET_KMH_AT_60_RPM in AirBike.ino; only used when the bike's own speed isn't available (simulator)
   SAMPLE_EVERY_S: 5,           // the ride's cadence chart keeps one average value per this many seconds
@@ -601,6 +623,14 @@ const LIMITS = Object.freeze({
   SUM_CHART:            { type: "bool" },
   SUM_RECENT:           { type: "bool" },
   SUM_NEXT_GOAL:        { type: "bool" },
+  SOUND_SOURCE:         { type: "enum", values: ["off", "video", "music"] },
+  SOUND_MAX_VOLUME:     { min: 0.05, max: 1,   step: 0.05 },
+  SOUND_MIN_VOLUME:     { min: 0,    max: 0.5, step: 0.05 },
+  SOUND_START_OFFSET:   { min: 5,    max: 40,  step: 1 },
+  SOUND_FULL_OFFSET:    { min: 0,    max: 20,  step: 1 },
+  SOUND_PRESERVE_PITCH: { type: "bool" },
+  SOUND_RISE_SECONDS:   { min: 0.5,  max: 5,   step: 0.5 },
+  SOUND_FALL_SECONDS:   { min: 0.5,  max: 8,   step: 0.5 },
 });
 const COLOUR_RANGE_MIN_RPM = 5;   // "colour starts" must be at least this far below "full colour"
 
@@ -623,6 +653,10 @@ function sanitizeSettings(raw) {
   if (out.COLOUR_START_OFFSET < out.COLOUR_FULL_OFFSET + COLOUR_RANGE_MIN_RPM) {
     out.COLOUR_START_OFFSET = out.COLOUR_FULL_OFFSET + COLOUR_RANGE_MIN_RPM;
   }
+  if (out.SOUND_START_OFFSET < out.SOUND_FULL_OFFSET + COLOUR_RANGE_MIN_RPM) {
+    out.SOUND_START_OFFSET = out.SOUND_FULL_OFFSET + COLOUR_RANGE_MIN_RPM;
+  }
+  if (out.SOUND_MIN_VOLUME > out.SOUND_MAX_VOLUME) out.SOUND_MIN_VOLUME = out.SOUND_MAX_VOLUME;
   return out;
 }
 
@@ -781,15 +815,35 @@ const NEW_ZONE = Object.freeze({ inZone: false, aboveFor: 0, belowFor: 0, streak
 
 function bonusActive(z, cfg) { return z.inZone && z.streak >= cfg.BONUS_AFTER_SECONDS - 1e-6; }
 
-/** How clear the picture should be (0 = grey/hazy, 1 = full colour). Smooth S-curve across the colour range. */
+/** 0 at or below startRpm, 1 at or above fullRpm, smooth S-curve between. */
+function rampLevel(rpm, startRpm, fullRpm) {
+  if (rpm >= fullRpm) return 1;
+  if (rpm <= startRpm) return 0;
+  const x = (rpm - startRpm) / (fullRpm - startRpm);
+  return x * x * (3 - 2 * x);
+}
+
+/** How clear the picture should be (0 = grey/hazy, 1 = full colour). */
 function clarityTarget(rpm, inZone, cfg) {
   if (!cfg.VISUAL_REWARD || inZone) return 1;
-  const full = cfg.TARGET_RPM - cfg.COLOUR_FULL_OFFSET;
-  const start = cfg.TARGET_RPM - cfg.COLOUR_START_OFFSET;
-  if (rpm >= full) return 1;
-  if (rpm <= start) return 0;
-  const x = (rpm - start) / (full - start);
-  return x * x * (3 - 2 * x);
+  return rampLevel(rpm, cfg.TARGET_RPM - cfg.COLOUR_START_OFFSET, cfg.TARGET_RPM - cfg.COLOUR_FULL_OFFSET);
+}
+
+/** How loud the sound should be (0..1), the same way as the colour: rises across its range, full in the zone. */
+function soundLevelTarget(rpm, inZone, cfg) {
+  if (inZone) return 1;
+  return rampLevel(rpm, cfg.TARGET_RPM - cfg.SOUND_START_OFFSET, cfg.TARGET_RPM - cfg.SOUND_FULL_OFFSET);
+}
+
+/**
+ * Element volume for a level 0..1. The element's volume scales the signal linearly (measured in
+ * Chrome: 0.5 gives half the amplitude), and hearing is closer to logarithmic, so the level is
+ * squared: equal steps in cadence then sound like more even steps in loudness.
+ */
+function volumeFor(level, cfg) {
+  const l = Number.isFinite(level) ? Math.min(1, Math.max(0, level)) : 0;   // never hand the element an invalid volume (it throws)
+  const v = cfg.SOUND_MIN_VOLUME + (cfg.SOUND_MAX_VOLUME - cfg.SOUND_MIN_VOLUME) * l * l;
+  return Math.min(1, Math.max(0, v));
 }
 
 /** Exponential ease toward a target; reaches ~95% in riseSeconds (going up) or fallSeconds (going down). */
@@ -1026,6 +1080,7 @@ globalThis.AirBikeCore = {
   DEFAULTS, CONFIG, LIMITS, FTMS, sanitizeSettings, editableValues,
   parseIndoorBikeData, effectiveCadence, targetRateForCadence, stepPlayback,
   stepZone, NEW_ZONE, bonusActive, clarityTarget, easeToward, lookFor,
+  rampLevel, soundLevelTarget, volumeFor,
   dayKey, weekStart, fmtDuration, fmtMinutes, fmtDistance, speedFromCadence,
   newRide, stepRide, finishRide, sanitizeRide, rideAwards, rideHeadline, nextGoal, ridesToCSV,
 };
@@ -1043,6 +1098,7 @@ globalThis.AirBikeCore = {
     DEFAULTS, LIMITS, FTMS, sanitizeSettings, editableValues,
     parseIndoorBikeData, effectiveCadence, targetRateForCadence, stepPlayback,
     stepZone, NEW_ZONE, bonusActive, clarityTarget, easeToward, lookFor,
+    soundLevelTarget, volumeFor,
     dayKey, fmtDuration, fmtMinutes, fmtDistance, speedFromCadence,
     newRide, stepRide, finishRide, sanitizeRide, rideAwards, rideHeadline, nextGoal, ridesToCSV,
   } = globalThis.AirBikeCore;
@@ -1372,7 +1428,7 @@ globalThis.AirBikeCore = {
 
     init() {
       this.el = $("video");
-      this.el.muted = true;   // music comes in a later step
+      this.el.muted = true;   // starts muted; Sound unmutes it when "Video sound" is chosen
       this.el.addEventListener("error", () => {
         if (!this.hasVideo) return;
         UI.showMessage("video", "This video can't be played in Chrome. MP4 files (H.264 video) work best.", "error");
@@ -1385,6 +1441,8 @@ globalThis.AirBikeCore = {
       UI.clearMessage("video");
       this.hasVideo = true;
       this.state = { rate: 0, playing: false, stoppingFor: 0 };
+      // Set before playback starts: in Chrome 153 this always takes effect (measured).
+      this.el.preservesPitch = cfg.SOUND_PRESERVE_PITCH;
       this.el.src = this.url;   // loading resets playbackRate to defaultPlaybackRate; tick() re-applies it
       $("app").classList.add("has-video");
     },
@@ -1406,8 +1464,12 @@ globalThis.AirBikeCore = {
             UI.clearMessage("play");
           }).catch((e) => {
             this.playPending = false;
-            if (e && e.name === "NotAllowedError") UI.showMessage("play", "Tap the screen once to let the video play.", "info");
-            else if (e && e.name !== "AbortError") console.warn("play() failed", e);
+            if (e && e.name === "NotAllowedError") {
+              // Chrome only allows sound after a tap/click on the page; muted video is always allowed.
+              // So: play muted now, and turn the sound on at the next tap.
+              if (!this.el.muted) Sound.block();
+              else UI.showMessage("play", "Tap the screen once to let the video play.", "info");
+            } else if (e && e.name !== "AbortError") console.warn("play() failed", e);
           });
         }
       } else if (!this.el.paused) {
@@ -1481,7 +1543,164 @@ globalThis.AirBikeCore = {
     },
   };
 
-  // (Step 3) Audio module will go here, fed from the same tick.
+  // -------------------------------------------------------------------
+  // Sound: the video's own sound, or your own music. The volume follows cadence the same
+  // way as the colour: quiet when slow, rising across its range, steady at the target.
+  //  - Video sound plays at the video's speed (it's the same element; measured in Chrome 153:
+  //    the audio stays in step with the picture at 0.3x-1x).
+  //  - Music always plays at normal speed and repeats (one file loops; several play in order).
+  // -------------------------------------------------------------------
+  const Sound = {
+    music: null,
+    files: [],               // [{ name, url }]
+    index: 0,
+    level: 0,                // 0..1, eased
+    userMuted: false,        // the speaker button (not saved)
+    blocked: false,          // Chrome needs a tap before sound may play
+    playPending: false,
+    shown: {},
+
+    init() {
+      this.music = $("music");
+      this.music.addEventListener("ended", () => this.next());
+      this.music.addEventListener("error", () => {
+        if (!this.files.length) return;
+        UI.showMessage("music", `“${this.files[this.index].name}” can't be played. MP3 or M4A files work best.`, "error");
+        if (this.files.length > 1) this.next();
+      });
+      // The first tap/click/key after sound was blocked turns it on (inside the gesture).
+      // On touch screens the page counts as "interacted with" when the finger lifts, so listen for that.
+      const unblock = () => this.unblock();
+      ["pointerup", "click", "keydown"].forEach((ev) => document.addEventListener(ev, unblock, true));
+      $("btn-sound").addEventListener("click", () => { this.userMuted = !this.userMuted; this.render(); });
+      $("btn-music").addEventListener("click", () => this.pickMusic());
+      this.render();
+    },
+
+    pickMusic() {
+      pickFiles("audio/*", true, (files) => this.loadMusic(files));
+    },
+
+    loadMusic(files) {
+      this.files.forEach((f) => URL.revokeObjectURL(f.url));
+      this.files = files.map((f) => ({ name: f.name, url: URL.createObjectURL(f) }));
+      this.index = 0;
+      UI.clearMessage("music");
+      this.setTrack(0);
+      this.render();
+      if (SettingsSheet.isOpen) SettingsSheet.refresh();
+    },
+
+    setTrack(i) {
+      if (!this.files.length) return;
+      this.index = i % this.files.length;
+      this.music.loop = this.files.length === 1;   // one file: repeat it; several: play in order, then start again
+      this.music.src = this.files[this.index].url;
+      this.music.playbackRate = 1;
+    },
+
+    next() {
+      if (this.files.length < 2) return;
+      this.setTrack(this.index + 1);
+      if (cfg.SOUND_SOURCE === "music") this.playMusic();
+    },
+
+    playMusic() {
+      if (this.playPending || !this.files.length) return;
+      this.playPending = true;
+      this.music.play().then(() => { this.playPending = false; }).catch((e) => {
+        this.playPending = false;
+        if (e && e.name === "NotAllowedError") this.block();
+        else if (e && e.name !== "AbortError") console.warn("music play() failed", e);
+      });
+    },
+
+    block() {
+      if (this.blocked) return;
+      this.blocked = true;
+      VideoController.el.muted = true;      // muted video may always play
+      UI.showMessage("sound", "Tap anywhere to turn on the sound.", "info", { dismissible: false });
+    },
+
+    // Chrome allows sound only after the user has interacted with the page (sticky user activation).
+    hasInteracted() { return !navigator.userActivation || navigator.userActivation.hasBeenActive; },
+
+    unblock() {
+      if (!this.blocked || !this.hasInteracted()) return;
+      this.blocked = false;
+      UI.clearMessage("sound");
+      if (cfg.SOUND_SOURCE === "video") VideoController.el.muted = false;
+      if (cfg.SOUND_SOURCE === "music") this.playMusic();
+    },
+
+    // Pitch setting changed: set it, then a same-position seek so Chrome applies it during playback.
+    applyPitch() {
+      const v = VideoController.el;
+      if (v.preservesPitch === cfg.SOUND_PRESERVE_PITCH) return;
+      v.preservesPitch = cfg.SOUND_PRESERVE_PITCH;
+      if (VideoController.hasVideo && !v.paused) { const t = v.currentTime; v.currentTime = t; }
+    },
+
+    update(rpm, inZone, dt) {
+      const src = cfg.SOUND_SOURCE;
+      const target = src === "off" ? 0 : soundLevelTarget(rpm, inZone, cfg);
+      this.level = easeToward(this.level, target, dt, cfg.SOUND_RISE_SECONDS, cfg.SOUND_FALL_SECONDS);
+      const vol = this.userMuted ? 0 : volumeFor(this.level, cfg);
+
+      const v = VideoController.el;
+      // Don't unmute before the user has interacted with the page: Chrome may refuse or pause it.
+      // Ask for a tap instead (this happens after a reload, e.g. when a ride was restored).
+      if (src === "video" && VideoController.hasVideo && !this.blocked && !this.hasInteracted()) this.block();
+      const videoSound = src === "video" && !this.blocked;
+      if (v.muted === videoSound) v.muted = !videoSound;
+      if (videoSound && Math.abs(v.volume - vol) > 0.002) v.volume = vol;
+
+      const m = this.music;
+      if (src === "music" && this.files.length) {
+        if (Math.abs(m.volume - vol) > 0.002) m.volume = vol;
+        if (m.playbackRate !== 1) m.playbackRate = 1;
+        if (m.paused && !this.blocked) this.playMusic();
+      } else if (!m.paused) {
+        m.pause();
+      }
+      this.render();
+    },
+
+    set(id, prop, value) {
+      const key = id + "." + prop;
+      if (this.shown[key] === value) return;
+      this.shown[key] = value;
+      if (prop === "text") $(id).textContent = value;
+      else if (prop.startsWith("aria-") || prop === "title") $(id).setAttribute(prop, value);
+      else $(id)[prop] = value;
+    },
+
+    render() {
+      const src = cfg.SOUND_SOURCE;
+      this.set("btn-sound", "hidden", src === "off");
+      this.set("btn-sound", "aria-pressed", String(this.userMuted));
+      this.set("btn-sound", "aria-label", this.userMuted ? "Turn sound on" : "Mute sound");
+      this.set("btn-sound", "title", this.userMuted ? "Turn sound on" : "Mute sound");
+      this.set("btn-music", "hidden", src !== "music");
+      this.set("btn-music", "text", this.files.length ? "Change music" : "Choose music");
+    },
+
+    describe() {
+      if (!this.files.length) return "None chosen";
+      return this.files.length === 1 ? this.files[0].name : `${this.files.length} files, now: ${this.files[this.index].name}`;
+    },
+  };
+
+  // Open the file picker (must be called from a click). Placed inside an open dialog,
+  // because the page behind a modal dialog is inert.
+  function pickFiles(accept, multiple, onFiles) {
+    const input = h("input", { type: "file", accept, hidden: true });
+    input.multiple = multiple;
+    input.addEventListener("change", () => { const f = Array.from(input.files || []); input.remove(); if (f.length) onFiles(f); });
+    input.addEventListener("cancel", () => input.remove());
+    (SettingsSheet.isOpen ? SettingsSheet.el : document.body).append(input);
+    input.click();
+  }
 
   // -------------------------------------------------------------------
   // Saved rides (localStorage on this device). Each ride is about 3 KB.
@@ -2105,6 +2324,7 @@ globalThis.AirBikeCore = {
     flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 21V4"/><path d="M5.5 4.5h11l-2.5 4 2.5 4h-11" fill="currentColor"/></svg>',
     chart: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="12" width="4" height="8" rx="1.2"/><rect x="10" y="7" width="4" height="13" rx="1.2"/><rect x="16" y="4" width="4" height="16" rx="1.2"/></svg>',
     clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+    speaker: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>',
     chevronRight: '<svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 1.5L6.5 7l-5 5.5"/></svg>',
     chevronLeft: '<svg viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2L2.5 10 10 18"/></svg>',
     minus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5.5 12h13"/></svg>',
@@ -2140,6 +2360,8 @@ globalThis.AirBikeCore = {
   const fmtPct = (v) => `${Math.round(v * 100)}%`;
   const visualOn = (c) => c.VISUAL_REWARD;
   const glowOn = (c) => c.BONUS_GLOW;
+  const soundOn = (c) => c.SOUND_SOURCE !== "off";
+  const SOUND_NAMES = { off: "Off", video: "Video sound", music: "Music" };
 
   const PAGES = {
     main: {
@@ -2151,6 +2373,7 @@ globalThis.AirBikeCore = {
           { type: "link", page: "ride", icon: "gauge", tint: "var(--blue)", label: "Ride", value: (c) => fmtRpm(c.TARGET_RPM) },
           { type: "link", page: "screen", icon: "display", tint: "#32ade6", label: "Ride screen", value: (c) => `${[c.HUD_TIME, c.HUD_TARGET_TIME, c.HUD_DISTANCE].filter(Boolean).length} of 3 shown` },
           { type: "link", page: "visual", icon: "contrast", tint: "var(--indigo)", label: "Visual reward", value: (c) => (c.VISUAL_REWARD ? "On" : "Off") },
+          { type: "link", page: "sound", icon: "speaker", tint: "#ff2d55", label: "Sound", value: (c) => SOUND_NAMES[c.SOUND_SOURCE] },
           { type: "link", page: "bonus", icon: "sun", tint: "var(--orange)", label: "Bonus glow", value: (c) => (c.BONUS_GLOW ? `After ${fmtClock(c.BONUS_AFTER_SECONDS)}` : "Off") },
           { type: "link", page: "zone", icon: "timer", tint: "var(--green)", label: "Zone timing", value: (c) => `${c.ZONE_ENTER_SECONDS} s in, ${c.ZONE_EXIT_SECONDS} s out` },
         ] },
@@ -2166,6 +2389,41 @@ globalThis.AirBikeCore = {
           footer: () => (Store.available
             ? "Settings are saved on this device and used every time the app opens here. Resetting them doesn't delete saved rides."
             : "This browser isn't letting the app save settings, so they'll go back to the defaults when the page reloads.") },
+      ],
+    },
+
+    sound: {
+      title: "Sound",
+      groups: [
+        { rows: [{ type: "segmented", key: "SOUND_SOURCE", label: "Sound", options: [["off", "Off"], ["video", "Video sound"], ["music", "Music"]] }],
+          footer: (c) => ({
+            off: "No sound plays.",
+            video: "The video's own sound plays, at the same speed as the video.",
+            music: "Your own music plays at normal speed whatever the cadence, and starts again when it reaches the end.",
+          })[c.SOUND_SOURCE] },
+        { header: "Music", rows: [
+          { type: "action", id: "CHOOSE_MUSIC", label: "Choose music…", enabled: (c) => c.SOUND_SOURCE === "music", run: () => Sound.pickMusic() },
+          { type: "info", id: "MUSIC_NOW", label: "Music", value: () => Sound.describe(), enabled: (c) => c.SOUND_SOURCE === "music" },
+        ], footer: "Pick one or more audio files on this device. They play in order and repeat. Nothing is uploaded, so music needs choosing again each time the app is opened (like the video)." },
+        { header: "Volume", rows: [
+          { type: "slider", key: "SOUND_MAX_VOLUME", label: "Volume", format: fmtPct, enabled: soundOn },
+          { type: "slider", key: "SOUND_MIN_VOLUME", label: "Volume when slow", format: (v) => (v === 0 ? "Silent" : fmtPct(v)), enabled: soundOn },
+        ], footer: "Volume is the level at your target cadence and above. “Volume when slow” is the level when pedalling slowly or stopped." },
+        { header: "Volume range", rows: [
+          { type: "stepper", id: "SOUND_START", label: "Sound starts rising", step: 1, format: fmtRpm, enabled: soundOn,
+            get: (c) => c.TARGET_RPM - c.SOUND_START_OFFSET,
+            set: (c, v) => ({ SOUND_START_OFFSET: c.TARGET_RPM - v }),
+            min: (c) => c.TARGET_RPM - LIMITS.SOUND_START_OFFSET.max,
+            max: (c) => c.TARGET_RPM - c.SOUND_FULL_OFFSET - 5 },
+          { type: "stepper", id: "SOUND_FULL", label: "Full volume at", step: 1, format: fmtRpm, enabled: soundOn,
+            get: (c) => c.TARGET_RPM - c.SOUND_FULL_OFFSET,
+            set: (c, v) => ({ SOUND_FULL_OFFSET: c.TARGET_RPM - v }),
+            min: (c) => Math.max(c.TARGET_RPM - LIMITS.SOUND_FULL_OFFSET.max, c.TARGET_RPM - c.SOUND_START_OFFSET + 5),
+            max: (c) => c.TARGET_RPM },
+        ], footer: (c) => `Below ${c.TARGET_RPM - c.SOUND_START_OFFSET} RPM the volume stays at its lowest; from ${c.TARGET_RPM - c.SOUND_FULL_OFFSET} RPM it's steady. Once in the zone it stays steady until cadence really drops, like the colour.` },
+        { header: "Video sound", rows: [
+          { type: "toggle", key: "SOUND_PRESERVE_PITCH", label: "Natural pitch when slowed", enabled: (c) => c.SOUND_SOURCE === "video" },
+        ], footer: "On: voices and music in the video keep their normal pitch when it slows down. Off: they get deeper, like a slowed-down tape." },
       ],
     },
 
@@ -2328,6 +2586,10 @@ globalThis.AirBikeCore = {
           { type: "stepper", key: "CLARITY_FALL_SECONDS", label: "Colour fades over", format: fmtSec },
           { type: "stepper", key: "GLOW_FADE_SECONDS", label: "Glow fades over", format: fmtSec },
         ], footer: "Slower fades are calmer. Nothing on screen ever flashes." },
+        { header: "Sound fades", rows: [
+          { type: "stepper", key: "SOUND_RISE_SECONDS", label: "Volume rises over", format: fmtSec },
+          { type: "stepper", key: "SOUND_FALL_SECONDS", label: "Volume falls over", format: fmtSec },
+        ] },
         { header: "Screen", rows: [
           { type: "stepper", key: "CONTROLS_HIDE_MS", label: "Hide buttons after", format: (v) => fmtSec(v / 1000) },
         ] },
@@ -2519,6 +2781,12 @@ globalThis.AirBikeCore = {
         SettingsSheet.refresh();
       });
       return { el, update() { setEnabled(el, def); } };
+    },
+
+    info(def) {
+      const value = h("span", { class: "info-value" });
+      const el = h("div", { class: "cell", "data-row": def.id }, [h("span", { class: "cell-label", text: def.label }), value]);
+      return { el, update() { const t = def.value(cfg); value.textContent = t; value.title = t; setEnabled(el, def); } };
     },
 
     history() {
@@ -2788,6 +3056,7 @@ globalThis.AirBikeCore = {
       const target = targetRateForCadence(cad.rpm, cfg);
       VideoController.tick(dt, target);
       Effects.update({ rpm: cad.rpm, dt });
+      Sound.update(cad.rpm, Effects.zone.inZone, dt);
       UI.renderCadence(cad, VideoController.state, VideoController.hasVideo, Effects.zone.inZone);
       // Distance uses the speed the bike itself reports; the simulator uses the same rule as the sketch.
       const fresh = cad.source === "bike" && !cad.stale && typeof Bike.lastSpeed === "number";
@@ -2810,8 +3079,10 @@ globalThis.AirBikeCore = {
       RideStore.load();
       Summary.init();
       SettingsSheet.init();
+      Sound.init();
       Settings.onChange(() => App.applySettings());
       Settings.onChange(() => Session.render());
+      Settings.onChange(() => { Sound.applyPitch(); Sound.render(); });
 
       Bike.onChange = () => {
         App.refreshStatus();
@@ -2847,7 +3118,7 @@ globalThis.AirBikeCore = {
     },
   };
 
-  window.AirBikeApp = { Bike, Sim, VideoController, UI, App, Effects, Settings, SettingsSheet, Store, cfg, RideStore, Session, Summary };   // for debugging in DevTools
+  window.AirBikeApp = { Bike, Sim, VideoController, UI, App, Effects, Settings, SettingsSheet, Store, cfg, RideStore, Session, Summary, Sound };   // for debugging in DevTools
   App.init();
 })();
 </script>
